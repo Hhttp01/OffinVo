@@ -1,42 +1,103 @@
-@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;800&display=swap');
-
+/* הגדרות כלליות */
 body {
     font-family: 'Assistant', sans-serif;
-    direction: rtl;
+    background-color: #f8fafc;
+    color: #1e293b;
     margin: 0;
-    padding: 0;
-    -webkit-tap-highlight-color: transparent;
+    line-height: 1.5;
 }
 
-/* מוודא שהתוכן לא "בורח" מתחת לתפריט */
-main {
-    position: relative;
-    z-index: 10;
+/* כרטיסים (Cards) */
+.card {
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    padding: 1.25rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* מוודא שהתפריט התחתון תמיד מעל הכל וניתן ללחיצה */
-nav {
-    z-index: 100 !important;
-    pointer-events: auto !important;
+.card:hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
 
-.nav-link {
+/* כפתורים (Buttons) */
+.btn {
+    transition: all 0.2s ease;
     cursor: pointer;
-    background: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    font-weight: 700;
     border: none;
     outline: none;
 }
 
-.card {
-    transition: transform 0.1s ease;
+.btn-primary {
+    background-color: #3b82f6;
+    color: white;
 }
 
-.card:active {
-    transform: scale(0.98);
+.btn-primary:hover {
+    background-color: #2563eb;
+    transform: translateY(-1px);
 }
 
-/* תיקון לתצוגת ההדפסה */
-@media print {
-    .no-print, nav, header { display: none !important; }
-    body { background: white; }
+.btn-ghost {
+    background-color: #f1f5f9;
+    color: #475569;
+}
+
+.btn-ghost:hover {
+    background-color: #e2e8f0;
+}
+
+/* תגים (Badges) */
+.badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+/* שדות קלט (Inputs) */
+input {
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+}
+
+input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* מודאל (Modal) */
+#modal-container {
+    backdrop-filter: blur(4px);
+    transition: opacity 0.3s ease;
+}
+
+.modal-content {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* כותרות */
+h1, h2, h3, h4 {
+    margin: 0;
+    color: #0f172a;
+}
+
+/* עיצוב רספונסיבי */
+@media (max-width: 640px) {
+    .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
 }
