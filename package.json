@@ -1,0 +1,32 @@
+{
+  "name": "biz-manager",
+  "version": "1.0.0",
+  "description": "מערכת ניהול לקוחות ומסמכים לעסקים קטנים",
+  "main": "src/js/app.js",
+  "scripts": {
+    "start": "npx live-server src",
+    "dev": "npx live-server src --watch=src --open",
+    "build": "node scripts/build.js",
+    "test": "echo \"No tests specified\" && exit 0",
+    "format": "prettier --write \"src/**/*.{js,css,html}\"",
+    "lint": "eslint src/js/**/*.js",
+    "backup": "node scripts/backup.js"
+  },
+  "keywords": [
+    "business",
+    "management",
+    "clients",
+    "documents",
+    "invoice",
+    "hebrew"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "live-server": "^1.2.2",
+    "prettier": "^3.1.1"
+  },
+  "dependencies": {},
+  "type": "module"
+}
