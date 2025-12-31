@@ -1,258 +1,80 @@
 /**
- * --- State & DB Management ---
+ * --- Storage Service ---
+ * אחראי על כל הקשר עם ה-LocalStorage וניהול המידע
  */
-const DB = {
-    save: (key, data) => localStorage.setItem(`biz_app_${key}`, JSON.stringify(data)),
-    load: (key) => JSON.parse(localStorage.getItem(`biz_app_${key}`)) || []
+
+const STORAGE_KEYS = {
+    CLIENTS: 'biz_app_clients',
+    HISTORY: 'biz_app_history'
 };
 
-let clients = DB.load('clients');
-let history = DB.load('history');
-let currentView = 'dashboard';
-let activeClientIndex = null;
-let docSearchTerm = '';
+const StorageService = {
+    // --- פעולות בסיסיות ---
+    save: (key, data) => {
+        try {
+            localStorage.setItem(key, JSON.stringify(data));
+        } catch (e) {
+            console.error("Error saving to localStorage", e);
+        }
+    },
 
-// נתוני דוגמה ראשוניים
-if (clients.length === 0) {
-    clients = [{ name: 'ישראל ישראלי', phone: '050-1234567', email: 'israel@test.com' }];
-    DB.save('clients', clients);
-}
+    load: (key) => {
+        try {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : [];
+        } catch (e) {
+            console.error("Error loading from localStorage", e);
+            return [];
+        }
+    },
 
-/**
- * --- Workflow Logic ---
- */
+    // --- ניהול לקוחות ---
+    getClients: () => StorageService.load(STORAGE_KEYS.CLIENTS),
+    
+    addClient: (client) => {
+        const clients = StorageService.getClients();
+        clients.push(client);
+        StorageService.save(STORAGE_KEYS.CLIENTS, clients);
+        return clients;
+    },
 
-function getNextDocType(currentType) {
-    if (currentType === 'הצעת מחיר') return 'חשבונית מס';
-    if (currentType === 'חשבונית מס') return 'קבלה';
-    return null; 
-}
+    // --- ניהול היסטוריית מסמכים ---
+    getHistory: () => StorageService.load(STORAGE_KEYS.HISTORY),
+    
+    addDocument: (doc) => {
+        const history = StorageService.getHistory();
+        const newDoc = {
+            ...doc,
+            id: Date.now(), // מזהה ייחודי למסמך
+            timestamp: new Date().toISOString()
+        };
+        history.push(newDoc);
+        StorageService.save(STORAGE_KEYS.HISTORY, history);
+        return history;
+    },
 
-function promoteDocument(historyIndex) {
-    const doc = history[historyIndex];
-    const nextType = getNextDocType(doc.type);
+    updateDocument: (docId, newData) => {
+        const history = StorageService.getHistory();
+        const index = history.findIndex(d => d.id === docId);
+        if (index !== -1) {
+            history[index] = { ...history[index], ...newData };
+            StorageService.save(STORAGE_KEYS.HISTORY, history);
+        }
+        return history;
+    },
 
-    if (!nextType) {
-        doc.paid = !doc.paid;
-        DB.save('history', history);
-        render();
-        return;
+    // --- שאילתות וסיכומים ---
+    getClientStats: (clientName) => {
+        const history = StorageService.getHistory();
+        const clientDocs = history.filter(d => d.client === clientName);
+        
+        return {
+            paid: clientDocs.filter(d => d.paid).reduce((sum, d) => sum + d.total, 0),
+            pending: clientDocs.filter(d => !d.paid).reduce((sum, d) => sum + d.total, 0),
+            docs: clientDocs
+        };
     }
+};
 
-    showModal(
-        `קידום מסמך`,
-        `האם להפוך את ה${doc.type} ל-${nextType}?`,
-        () => {
-            doc.type = nextType;
-            if (nextType === 'קבלה') doc.paid = true;
-            DB.save('history', history);
-            render();
-        },
-        '🔄'
-    );
-}
-
-function addDocument(clientName, type, amount) {
-    if (!amount || amount <= 0) return;
-    const newDoc = {
-        client: clientName,
-        type: type,
-        total: parseFloat(amount),
-        date: new Date().toLocaleDateString('he-IL'),
-        paid: type === 'קבלה'
-    };
-    history.push(newDoc);
-    DB.save('history', history);
-    render();
-}
-
-/**
- * --- UI Helpers ---
- */
-
-function showModal(title, body, onConfirm, icon = '❓') {
-    const container = document.getElementById('modal-container');
-    document.getElementById('modal-title').innerText = title;
-    document.getElementById('modal-body').innerText = body;
-    document.getElementById('modal-icon').innerText = icon;
-    
-    container.classList.remove('hidden');
-    
-    const confirmBtn = document.getElementById('modal-confirm');
-    const cancelBtn = document.getElementById('modal-cancel');
-
-    const close = () => container.classList.add('hidden');
-    
-    confirmBtn.onclick = () => { onConfirm(); close(); };
-    cancelBtn.onclick = close;
-}
-
-function navigate(view, params = null) {
-    currentView = view;
-    if (view === 'client-detail') activeClientIndex = params;
-    docSearchTerm = ''; // איפוס חיפוש במעבר דף
-    render();
-}
-
-function updateSearch(val) {
-    docSearchTerm = val;
-    render();
-}
-
-function saveNewClient() {
-    const name = document.getElementById('c-name').value;
-    const phone = document.getElementById('c-phone').value;
-    const email = document.getElementById('c-email').value;
-
-    if (!name) return;
-    clients.push({ name, phone, email });
-    DB.save('clients', clients);
-    navigate('dashboard');
-}
-
-/**
- * --- Render Functions ---
- */
-
-function renderDashboard() {
-    const main = document.getElementById('main-content');
-    const nav = document.getElementById('nav-actions');
-    
-    nav.innerHTML = `<button onclick="navigate('add-client')" class="btn btn-primary">+ לקוח חדש</button>`;
-    
-    main.innerHTML = `
-        <h2 class="text-xl font-bold mb-4">רשימת לקוחות</h2>
-        <div class="grid gap-4">
-            ${clients.map((c, i) => `
-                <div onclick="navigate('client-detail', ${i})" class="card cursor-pointer hover:border-blue-300 border border-transparent flex justify-between items-center transition-all">
-                    <div>
-                        <h3 class="font-bold text-lg text-slate-800">${c.name}</h3>
-                        <p class="text-sm text-slate-500">${c.phone} | ${c.email}</p>
-                    </div>
-                    <div class="text-blue-500 font-bold">צפייה ></div>
-                </div>
-            `).join('')}
-        </div>
-    `;
-}
-
-function renderClientDetail(index) {
-    activeClientIndex = index;
-    const client = clients[index];
-    const main = document.getElementById('main-content');
-    const nav = document.getElementById('nav-actions');
-
-    const clientDocs = history.filter(h => h.client === client.name);
-    const filteredDocs = clientDocs.filter(d => 
-        d.type.includes(docSearchTerm) || d.total.toString().includes(docSearchTerm)
-    );
-
-    const paidTotal = clientDocs.filter(d => d.paid).reduce((sum, d) => sum + d.total, 0);
-    const pendingTotal = clientDocs.filter(d => !d.paid).reduce((sum, d) => sum + d.total, 0);
-
-    nav.innerHTML = `<button onclick="navigate('dashboard')" class="btn btn-ghost">< חזרה</button>`;
-
-    main.innerHTML = `
-        <div class="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-                <h2 class="text-2xl font-bold text-slate-800">${client.name}</h2>
-                <p class="text-slate-500">${client.email} | ${client.phone}</p>
-            </div>
-            <div class="flex gap-4">
-                <div class="text-center bg-emerald-50 p-2 px-4 rounded-lg border border-emerald-100">
-                    <p class="text-xs text-emerald-600 font-bold">שולם</p>
-                    <p class="text-lg font-bold text-emerald-700">₪${paidTotal.toLocaleString()}</p>
-                </div>
-                <div class="text-center bg-orange-50 p-2 px-4 rounded-lg border border-orange-100">
-                    <p class="text-xs text-orange-600 font-bold">יתרה</p>
-                    <p class="text-lg font-bold text-orange-700">₪${pendingTotal.toLocaleString()}</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="card mb-6 bg-slate-50 border-dashed border-2 border-slate-200 shadow-none">
-            <h3 class="font-bold mb-3 text-slate-700">הפקת מסמך מהירה</h3>
-            <div class="flex flex-wrap gap-2">
-                <input id="new-doc-amount" type="number" placeholder="סכום (₪)" class="border p-2 rounded w-32 focus:ring-2 focus:ring-blue-400 outline-none">
-                <button onclick="addDocument('${client.name}', 'הצעת מחיר', document.getElementById('new-doc-amount').value)" class="btn bg-white text-blue-600 border border-blue-100 hover:bg-blue-50">הצעת מחיר</button>
-                <button onclick="addDocument('${client.name}', 'חשבונית מס', document.getElementById('new-doc-amount').value)" class="btn bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-50">חשבונית מס</button>
-                <button onclick="addDocument('${client.name}', 'קבלה', document.getElementById('new-doc-amount').value)" class="btn bg-white text-emerald-600 border border-emerald-100 hover:bg-emerald-50">קבלה</button>
-            </div>
-        </div>
-
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold text-slate-700">היסטוריית מסמכים</h3>
-            <input oninput="updateSearch(this.value)" value="${docSearchTerm}" type="text" placeholder="חיפוש מסמך..." class="border rounded-lg p-1 px-3 text-sm focus:ring-2 focus:ring-blue-400 outline-none w-48">
-        </div>
-
-        <div class="space-y-3">
-            ${filteredDocs.length === 0 ? '<p class="text-center py-8 text-slate-400 italic">אין מסמכים להצגה</p>' : ''}
-            ${filteredDocs.map((h) => {
-                const hIdx = history.findIndex(item => item === h);
-                const nextStep = getNextDocType(h.type);
-                return `
-                    <div class="card flex justify-between items-center border-r-4 ${h.paid ? 'border-emerald-500' : 'border-orange-500'}">
-                        <div>
-                            <p class="text-[10px] text-slate-400 font-bold">${h.date}</p>
-                            <h4 class="font-bold text-slate-800">${h.type}</h4>
-                            <p class="text-sm font-bold text-slate-600">₪${h.total.toLocaleString()}</p>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <span class="badge ${h.paid ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}">
-                                ${h.paid ? 'שולם' : 'ממתין'}
-                            </span>
-                            <button onclick="promoteDocument(${hIdx})" class="btn btn-ghost text-xs ${nextStep ? 'text-blue-600' : 'text-slate-400'}">
-                                ${nextStep ? `המר ל-${nextStep} 🔄` : (h.paid ? 'סמן כלא שולם' : 'סמן כשולם')}
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }).reverse().join('')}
-        </div>
-    `;
-}
-
-function renderAddClient() {
-    const main = document.getElementById('main-content');
-    const nav = document.getElementById('nav-actions');
-    nav.innerHTML = `<button onclick="navigate('dashboard')" class="btn btn-ghost">< חזרה</button>`;
-    
-    main.innerHTML = `
-        <div class="card max-w-md mx-auto">
-            <h2 class="text-xl font-bold mb-4 text-slate-800">הוספת לקוח חדש</h2>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-bold mb-1 text-slate-600">שם מלא</label>
-                    <input id="c-name" type="text" class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-400 outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-bold mb-1 text-slate-600">טלפון</label>
-                    <input id="c-phone" type="text" class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-400 outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm font-bold mb-1 text-slate-600">אימייל</label>
-                    <input id="c-email" type="email" class="w-full border p-2 rounded focus:ring-2 focus:ring-blue-400 outline-none">
-                </div>
-                <button onclick="saveNewClient()" class="btn btn-primary w-full mt-4 py-3">שמור לקוח</button>
-            </div>
-        </div>
-    `;
-}
-
-function render() {
-    if (currentView === 'dashboard') renderDashboard();
-    else if (currentView === 'client-detail') renderClientDetail(activeClientIndex);
-    else if (currentView === 'add-client') renderAddClient();
-}
-
-// הפעלה ראשונית
-window.onload = render;
-
-        <script src="storage.js"></script>
-<script src="app.js"></script>
-
-ולאחר מכן, בתוך `app.js`, תוכל להחליף את הקריאות הישירות ל-`localStorage` בשימוש ב-`StorageService`. לדוגמה:
-* במקום `DB.load('clients')` השתמש ב-`StorageService.getClients()`.
-* במקום `DB.save(...)` השתמש ב-`StorageService.addDocument(...)`.
-
-זה הופך את הקוד שלך להרבה יותר קריא וקל לתחזוקה!
+// ייצוא אופציונלי אם תרצה להשתמש ב-Modules בעתיד
+// export default StorageService;
