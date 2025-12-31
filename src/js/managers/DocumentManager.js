@@ -180,3 +180,99 @@ export class DocumentManager {
             .slice(0, limit);
     }
 }
+// 📄 src/js/managers/DocumentManager.js - הוספת פונקציות חסרות
+
+getDocumentById(id) {
+    return this.documents.find(doc => doc.id === id);
+}
+
+togglePaymentStatus(id) {
+    const document = this.getDocumentById(id);
+    if (document) {
+        return this.updateDocument(id, { paid: !document.paid });
+    }
+    return null;
+}
+
+getDocumentsByDateRange(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    return this.documents.filter(doc => {
+        const docDate = new Date(doc.date);
+        return docDate >= start && docDate <= end;
+    });
+}
+
+getTopClients(limit = 5) {
+    const clientTotals = {};
+    
+    this.documents.forEach(doc => {
+        if (!clientTotals[doc.client]) {
+            clientTotals[doc.client] = 0;
+        }
+        clientTotals[doc.client] += doc.total;
+    });
+    
+    return Object.entries(clientTotals)
+        .map(([client, total]) => ({ client, total }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, limit);
+}
+
+getOverdueDocuments() {
+    const today = new Date();
+    return this.documents.filter(doc => {
+        return doc.dueDate && 
+               !doc.paid && 
+               new Date(doc.dueDate) < today;
+    });
+}
+
+getDocumentsSummaryByType() {
+    const summary = {};
+    
+    this.documents.forEach(doc => {
+        if (!summary[doc.type]) {
+            summary[doc.type] = {
+                count: 0,
+                total: 0,
+                paid: 0
+            };
+        }
+        
+        summary[doc.type].count++;
+        summary[doc.type].total += doc.total;
+        if (doc.paid) {
+            summary[doc.type].paid += doc.total;
+        }
+    });
+    
+    return summary;
+}
+
+generateDocumentNumber(type) {
+    const documentsOfType = this.documents.filter(doc => doc.type === type);
+    const today = new Date();
+    const year = today.getFullYear().toString().slice(-2);
+    const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    
+    // מציאת המספר הגבוה ביותר לסוג זה השנה
+    const currentYearDocs = documentsOfType.filter(doc => {
+        const docDate = new Date(doc.date);
+        return docDate.getFullYear() === today.getFullYear();
+    });
+    
+    const maxNumber = currentYearDocs.reduce((max, doc) => {
+        if (doc.number) {
+            const match = doc.number.match(/\d+/);
+            if (match) {
+                const num = parseInt(match[0]);
+                return num > max ? num : max;
+            }
+        }
+        return max;
+    }, 0);
+    
+    return `${type.toUpperCase().substring(0, 3)}${year}${month}${(maxNumber + 1).toString().padStart(3, '0')}`;
+}
