@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InvoiceFlow Pro - Multi-Device</title>
+    <title>InvoiceFlow Pro - All-in-One</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script>
@@ -11,96 +11,43 @@
     </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@200;400;600;800&display=swap');
-        body { font-family: 'Assistant', sans-serif; transition: all 0.3s; }
+        body { font-family: 'Assistant', sans-serif; transition: background 0.3s; }
         .glass { backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
         .dark .glass { background: rgba(30, 41, 59, 0.7); }
         .light .glass { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0,0,0,0.1); }
         .page-section { display: none; }
-        .page-section.active { display: block; }
+        .page-section.active { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* התאמה להדפסה - A4 */
         @media print {
             .no-print { display: none !important; }
-            body { background: white; overflow: visible; }
-            .preview-paper { box-shadow: none; margin: 0; width: 100%; border: none; }
+            body { background: white !important; overflow: visible !important; }
+            .preview-paper { box-shadow: none !important; margin: 0 !important; width: 100% !important; border: none !important; padding: 10mm !important; }
+            main { height: auto !important; overflow: visible !important; }
         }
 
-        /* עיצוב דף החשבונית */
         .preview-paper { 
             width: 100%; max-width: 210mm; min-height: 297mm; 
-            padding: 15mm; background: white; color: #1e293b; 
-            margin: auto; box-shadow: 0 0 20px rgba(0,0,0,0.1); 
+            padding: 20mm; background: white; color: #1e293b; 
+            margin: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.15); border-radius: 4px;
         }
     </style>
 </head>
 <body class="dark bg-darkBg text-slate-200 h-screen flex flex-col md:flex-row overflow-hidden" id="bodyTag">
 
-    <aside class="no-print w-full md:w-64 bg-slate-950/80 md:bg-slate-950/50 border-t md:border-l md:border-t-0 border-white/5 flex md:flex-col p-4 md:p-6 z-50 order-2 md:order-1">
+    <aside class="no-print w-full md:w-64 bg-slate-950/90 md:bg-slate-950/50 border-t md:border-l md:border-t-0 border-white/5 flex md:flex-col p-3 md:p-6 z-50 order-2 md:order-1">
         <div class="hidden md:flex items-center gap-3 mb-10">
             <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg"><i class="fas fa-bolt text-white"></i></div>
-            <span class="text-xl font-extrabold italic">Invoice<span class="text-blue-500">Flow</span></span>
+            <span class="text-xl font-extrabold italic tracking-tighter">Invoice<span class="text-blue-500">Flow</span></span>
         </div>
 
         <nav class="flex md:flex-col justify-around md:justify-start w-full gap-1">
-            <button onclick="navigateTo('dashboard')" class="nav-btn flex flex-col md:flex-row items-center p-2 md:p-3 rounded-xl bg-blue-600 text-white transition">
+            <button onclick="navigateTo('dashboard', this)" class="nav-btn flex-1 md:flex-none flex flex-col md:flex-row items-center p-2 md:p-4 rounded-2xl bg-blue-600 text-white transition">
                 <i class="fas fa-chart-pie md:ml-3 text-lg md:text-base"></i>
                 <span class="text-[10px] md:text-sm font-bold mt-1 md:mt-0">דשבורד</span>
             </button>
-            <button onclick="navigateTo('createDoc')" class="nav-btn flex flex-col md:flex-row items-center p-2 md:p-3 rounded-xl text-slate-400 transition">
-                <i class="fas fa-plus-circle md:ml-3 text-lg md:text-base"></i>
-                <span class="text-[10px] md:text-sm font-bold mt-1 md:mt-0">יצירה</span>
-            </button>
-            <button onclick="navigateTo('settings')" class="nav-btn flex flex-col md:flex-row items-center p-2 md:p-3 rounded-xl text-slate-400 transition">
-                <i class="fas fa-cog md:ml-3 text-lg md:text-base"></i>
-                <span class="text-[10px] md:text-sm font-bold mt-1 md:mt-0">הגדרות</span>
-            </button>
-            <button onclick="toggleTheme()" class="flex flex-col md:flex-row items-center p-2 md:p-3 rounded-xl text-slate-400 md:mt-10">
-                <i class="fas fa-moon md:ml-3 text-lg md:text-base" id="themeIcon"></i>
-                <span class="text-[10px] md:text-sm font-bold mt-1 md:mt-0">עיצוב</span>
-            </button>
-        </nav>
-    </aside>
-
-    <main class="flex-1 flex flex-col overflow-hidden order-1 md:order-2">
-        <header class="h-16 md:h-20 flex items-center justify-between px-6 md:px-10 border-b border-white/5 glass no-print">
-            <h2 id="pageTitle" class="text-lg md:text-xl font-black">דשבורד</h2>
-            <div class="text-[10px] md:text-xs bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-full font-bold">Auto-Save On</div>
-        </header>
-
-        <div class="flex-1 overflow-y-auto p-4 md:p-8">
-            
-            <section id="dashboard" class="page-section active">
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <div class="glass p-6 rounded-3xl">
-                        <p class="text-[10px] font-bold text-slate-500 uppercase">סה"כ חשבוניות</p>
-                        <h3 class="text-2xl font-black">₪0.00</h3>
-                    </div>
-                </div>
-            </section>
-
-            <section id="settings" class="page-section">
-                <div class="glass p-6 md:p-8 rounded-[2rem] space-y-6">
-                    <h3 class="text-lg font-bold">הגדרות עסק</h3>
-                    <div class="flex flex-col md:flex-row gap-6 items-center">
-                        <div onclick="document.getElementById('logoInput').click()" class="w-24 h-24 bg-slate-900 border-2 border-dashed border-slate-700 rounded-2xl flex items-center justify-center overflow-hidden cursor-pointer">
-                            <img id="logoImgContainer" class="hidden w-full h-full object-contain" />
-                            <i id="logoPlaceholder" class="fas fa-camera text-slate-600"></i>
-                        </div>
-                        <input type="file" id="logoInput" class="hidden" accept="image/*">
-                        <div class="text-center md:text-right">
-                            <p class="text-sm font-bold">לוגו העסק</p>
-                            <p class="text-xs text-slate-500">יופיע בראש כל מסמך</p>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input type="text" id="myBusName" placeholder="שם העסק שלך" class="save-input bg-slate-900 p-4 rounded-xl border border-white/5 outline-none focus:border-blue-500">
-                        <input type="text" id="myBusId" placeholder="ח.פ / עוסק" class="save-input bg-slate-900 p-4 rounded-xl border border-white/5 outline-none focus:border-blue-500">
-                    </div>
-                </div>
-            </section>
-
-            <section id="createDoc" class="page-section">
-                <div class="glass p-6 md:p-8 rounded-[2rem] space-y-4">
+            <button onclick="navigateTo('createDoc', this)" class="nav-btn flex-1 md:flex-none flex flex-col md:flex-row items-center p-2 md:p-4 rounded-2xl text-slate-400 hover:text-white transition">
+                <i class="fas fa-plus-circle md:ml-3 text-lg md:text-base"></i>                <div class="glass p-6 md:p-8 rounded-[2rem] space-y-4">
                     <input type="text" id="custName" placeholder="שם הלקוח" class="save-input w-full bg-slate-900 p-4 rounded-xl border border-white/5 outline-none">
                     <button onclick="updatePreview(); navigateTo('preview')" class="w-full bg-blue-600 py-4 rounded-xl font-bold shadow-lg">צפה בתצוגה מקדימה</button>
                 </div>
