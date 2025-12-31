@@ -2,32 +2,41 @@
 
 body {
     font-family: 'Assistant', sans-serif;
+    direction: rtl;
+    margin: 0;
+    padding: 0;
     -webkit-tap-highlight-color: transparent;
 }
 
+/* מוודא שהתוכן לא "בורח" מתחת לתפריט */
+main {
+    position: relative;
+    z-index: 10;
+}
+
+/* מוודא שהתפריט התחתון תמיד מעל הכל וניתן ללחיצה */
+nav {
+    z-index: 100 !important;
+    pointer-events: auto !important;
+}
+
+.nav-link {
+    cursor: pointer;
+    background: none;
+    border: none;
+    outline: none;
+}
+
 .card {
-    background: white;
-    border-radius: 1.5rem;
-    padding: 1.25rem;
-    border: 1px solid #e2e8f0;
-    transition: all 0.2s ease;
+    transition: transform 0.1s ease;
 }
 
 .card:active {
     transform: scale(0.98);
 }
 
-.page-fade-in {
-    animation: fadeIn 0.3s ease-out;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* הגדרות להדפסה */
+/* תיקון לתצוגת ההדפסה */
 @media print {
-    nav, header, .no-print { display: none !important; }
-    .invoice-paper { box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; }
+    .no-print, nav, header { display: none !important; }
+    body { background: white; }
 }
