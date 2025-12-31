@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InvoiceFlow Pro - AutoSave</title>
+    <title>InvoiceFlow - Logo Persistence</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script>
@@ -16,9 +16,9 @@
         .dark .glass { background: rgba(30, 41, 59, 0.7); }
         .light .glass { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0,0,0,0.1); }
         .page-section { display: none; }
-        .page-section.active { display: block; animation: fadeIn 0.3s; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .preview-paper { width: 210mm; min-height: 297mm; padding: 20mm; background: white; color: #1e293b; margin: auto; box-shadow: 0 0 20px rgba(0,0,0,0.2); }
+        .page-section.active { display: block; }
+        .preview-paper { width: 210mm; min-height: 297mm; padding: 20mm; background: white; color: #1e293b; margin: auto; box-shadow: 0 0 20px rgba(0,0,0,0.2); position: relative; }
+        #logoPreview { max-height: 80px; max-width: 200px; object-fit: contain; }
     </style>
 </head>
 <body class="dark bg-darkBg text-slate-200 h-screen flex overflow-hidden" id="bodyTag">
@@ -45,49 +45,70 @@
 
         <div class="flex-1 overflow-y-auto p-8">
             
-            <section id="dashboard" class="page-section active">
-                <div class="glass p-10 rounded-[2rem] text-center">
-                    <h3 class="text-2xl font-bold mb-2">ברוך הבא למערכת שלך</h3>
-                    <p class="text-slate-500">כל הנתונים נשמרים אוטומטית בדפדפן זה.</p>
+            <section id="settings" class="page-section">
+                <div class="glass p-8 rounded-[2.5rem] space-y-8">
+                    <h3 class="text-xl font-bold italic">הגדרות פרופיל עסק</h3>
+                    
+                    <div class="flex items-center gap-6">
+                        <div id="logoDropZone" class="w-32 h-32 bg-slate-900 border-2 border-dashed border-slate-700 rounded-3xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition overflow-hidden">
+                            <img id="logoImgContainer" class="hidden w-full h-full object-contain" />
+                            <div id="logoUploadPlaceholder" class="flex flex-col items-center">
+                                <i class="fas fa-image text-2xl text-slate-600"></i>
+                                <span class="text-[10px] text-slate-500 mt-2 font-bold">העלה לוגו</span>
+                            </div>
+                        </div>
+                        <input type="file" id="logoInput" class="hidden" accept="image/*">
+                        <div>
+                            <p class="text-sm font-bold">לוגו העסק</p>
+                            <p class="text-[10px] text-slate-500">הקובץ יישמר אוטומטית בדפדפן</p>
+                            <button onclick="document.getElementById('logoInput').click()" class="mt-2 text-xs text-blue-500 underline font-bold">בחר קובץ</button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <input type="text" id="myBusName" placeholder="שם העסק שלך" class="save-input bg-slate-900 p-4 rounded-xl border border-white/5 outline-none">
+                        <input type="text" id="myBusId" placeholder="ח.פ / עוסק מורשה" class="save-input bg-slate-900 p-4 rounded-xl border border-white/5 outline-none">
+                    </div>
                 </div>
             </section>
 
             <section id="createDoc" class="page-section">
                 <div class="glass p-8 rounded-[2.5rem] space-y-6">
-                    <div class="grid grid-cols-2 gap-6">
-                        <input type="text" id="custName" placeholder="שם הלקוח" class="save-input bg-slate-900 p-4 rounded-xl border border-white/5 outline-none">
-                        <input type="tel" id="custPhone" placeholder="טלפון לקוח" class="save-input bg-slate-900 p-4 rounded-xl border border-white/5 outline-none">
-                    </div>
+                    <input type="text" id="custName" placeholder="שם הלקוח" class="save-input bg-slate-900 p-4 rounded-xl border border-white/5 outline-none w-full">
                     <button onclick="updatePreview(); navigateTo('preview')" class="w-full bg-blue-600 py-4 rounded-xl font-bold">צפה והפק מסמך</button>
                 </div>
             </section>
 
-            <section id="settings" class="page-section">
-                <div class="glass p-8 rounded-[2.5rem] space-y-6">
-                    <h3 class="text-xl font-bold italic">פרטי העסק שלי</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <input type="text" id="myBusName" placeholder="שם העסק שלך" class="save-input bg-slate-900 p-4 rounded-xl border border-white/5 outline-none">
-                        <input type="text" id="myBusId" placeholder="ח.פ / עוסק מורשה" class="save-input bg-slate-900 p-4 rounded-xl border border-white/5 outline-none">
-                    </div>
-                    <p class="text-xs text-emerald-500 font-bold"><i class="fas fa-check-circle"></i> שינויים נשמרים אוטומטית ברגע ההקלדה</p>
-                </div>
-            </section>
-
             <section id="preview" class="page-section no-print">
-                <div class="preview-paper text-right shadow-2xl">
-                    <div class="flex justify-between mb-10">
+                <div class="preview-paper text-right">
+                    <div class="flex justify-between items-start mb-16">
                         <div>
-                            <h1 id="preMyBusName" class="text-2xl font-black text-blue-600">שם העסק שלך</h1>
-                            <p id="preMyBusId" class="text-sm text-slate-400">ח.פ 00000000</p>
+                            <img id="previewLogo" src="" class="hidden mb-4 max-h-20" />
+                            <h1 id="preMyBusName" class="text-2xl font-black text-blue-600 leading-none">שם העסק שלך</h1>
+                            <p id="preMyBusId" class="text-xs text-slate-400 mt-1">ח.פ 00000000</p>
                         </div>
                         <div class="text-4xl font-black opacity-10">INVOICE</div>
                     </div>
+                    
                     <div class="border-r-4 border-blue-600 pr-4 mb-10">
-                        <p class="text-xs text-slate-400 font-bold uppercase">עבור:</p>
+                        <p class="text-[10px] text-slate-400 font-bold">עבור:</p>
                         <h4 id="preCustName" class="text-lg font-bold">שם הלקוח</h4>
-                        <p id="preCustPhone" class="text-sm text-slate-500">טלפון</p>
                     </div>
-                    <button onclick="window.print()" class="no-print mt-10 bg-slate-900 text-white px-8 py-3 rounded-xl font-bold">הדפס מסמך</button>
+
+                    <div class="mt-20 border-t pt-10 text-center">
+                        <p class="text-xs text-slate-400">תודה על בחירתכם בנו!</p>
+                    </div>
+                    
+                    <div class="no-print mt-10 flex gap-4">
+                        <button onclick="window.print()" class="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold">הדפס / PDF</button>
+                        <button onclick="navigateTo('createDoc')" class="bg-slate-100 text-slate-800 px-8 py-3 rounded-xl font-bold">חזור לעריכה</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="dashboard" class="page-section active">
+                <div class="glass p-10 rounded-[2rem] text-center">
+                    <h3 class="text-2xl font-bold mb-2 italic">שלום, מוכן להפיק מסמך?</h3>
                 </div>
             </section>
 
@@ -95,45 +116,70 @@
     </main>
 
     <script>
-        // 1. פונקציית ניווט
+        // ניווט
         function navigateTo(id) {
             document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
             document.getElementById(id).classList.add('active');
+            document.getElementById('pageTitle').innerText = (id === 'settings') ? 'הגדרות' : (id === 'createDoc' ? 'יצירה' : 'דשבורד');
         }
 
-        // 2. שמירה אוטומטית (LocalStorage)
-        const inputs = document.querySelectorAll('.save-input');
-        
-        // טעינת נתונים בזמן פתיחת הדף
+        // לוגיקת לוגו (Base64 + LocalStorage)
+        const logoInput = document.getElementById('logoInput');
+        const logoImgContainer = document.getElementById('logoImgContainer');
+        const logoPlaceholder = document.getElementById('logoUploadPlaceholder');
+        const previewLogo = document.getElementById('previewLogo');
+
+        logoInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64Image = e.target.result;
+                    localStorage.setItem('savedLogo', base64Image);
+                    loadLogo(base64Image);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function loadLogo(data) {
+            if (data) {
+                logoImgContainer.src = data;
+                logoImgContainer.classList.remove('hidden');
+                logoPlaceholder.classList.add('hidden');
+                previewLogo.src = data;
+                previewLogo.classList.remove('hidden');
+            }
+        }
+
+        // טעינת נתונים ראשונית
         window.onload = () => {
-            inputs.forEach(input => {
+            // טעינת טקסטים
+            document.querySelectorAll('.save-input').forEach(input => {
                 const savedValue = localStorage.getItem(input.id);
                 if (savedValue) input.value = savedValue;
             });
+            // טעינת לוגו
+            const savedLogo = localStorage.getItem('savedLogo');
+            if (savedLogo) loadLogo(savedLogo);
         };
 
-        // שמירה בכל הקלדה
-        inputs.forEach(input => {
+        // שמירת טקסט בכל הקלדה
+        document.querySelectorAll('.save-input').forEach(input => {
             input.addEventListener('input', () => {
                 localStorage.setItem(input.id, input.value);
             });
         });
 
-        // 3. עדכון התצוגה המקדימה
         function updatePreview() {
             document.getElementById('preMyBusName').innerText = document.getElementById('myBusName').value || "שם העסק שלך";
             document.getElementById('preMyBusId').innerText = "ח.פ " + (document.getElementById('myBusId').value || "00000000");
             document.getElementById('preCustName').innerText = document.getElementById('custName').value || "שם הלקוח";
-            document.getElementById('preCustPhone').innerText = document.getElementById('custPhone').value || "";
         }
 
-        // 4. מצב בהיר/כהה
         function toggleTheme() {
             const body = document.getElementById('bodyTag');
             body.classList.toggle('dark');
-            const isDark = body.classList.contains('dark');
-            document.getElementById('themeText').innerText = isDark ? "מצב בהיר" : "מצב כהה";
-            document.getElementById('themeIcon').className = isDark ? "fas fa-moon" : "fas fa-sun text-yellow-500";
         }
     </script>
 </body>
