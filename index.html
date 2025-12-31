@@ -3,104 +3,259 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>InvoiceFlow Master</title>
+    <title>InvoiceFlow Ultimate v4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;800&display=swap');
-        body { font-family: 'Assistant', sans-serif; background-color: #f8fafc; color: #1e293b; margin: 0; padding: 0; }
-        
-        .page-section { display: none; padding-bottom: 80px; }
+        body { font-family: 'Assistant', sans-serif; background: #f8fafc; color: #1e293b; }
+        .page-section { display: none; padding-bottom: 100px; }
         .page-section.active { display: block; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-        /* עיצוב דף החשבונית להדפסה */
-        @media print {
-            .no-print { display: none !important; }
-            body { background: white; }
-            .invoice-paper { box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; padding: 10mm !important; }
-        }
-
-        .invoice-paper {
-            background: white; width: 100%; max-width: 800px; min-height: 297mm;
-            margin: 20px auto; padding: 40px; border: 1px solid #e2e8f0;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.05); border-radius: 8px;
-        }
-
-        .nav-item.active { color: #2563eb; }
-        .nav-item.active i { transform: translateY(-3px); transition: 0.2s; }
+        .card { background: white; border-radius: 1.5rem; padding: 1.5rem; border: 1px solid #e2e8f0; }
+        @media print { .no-print { display: none !important; } body { background: white; } }
+        .invoice-paper { background: white; width: 100%; max-width: 800px; min-height: 297mm; margin: auto; padding: 40px; border: 1px solid #eee; }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body class="min-h-screen flex flex-col">
 
-    <header class="no-print bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 sticky top-0 z-50">
+    <header class="no-print bg-white border-b sticky top-0 z-50 px-6 h-16 flex items-center justify-between">
         <div class="flex items-center gap-2">
-            <div class="bg-blue-600 p-2 rounded-lg text-white shadow-md shadow-blue-200">
-                <i class="fas fa-bolt"></i>
-            </div>
-            <h1 class="font-extrabold text-xl tracking-tight">Invoice<span class="text-blue-600">Flow</span></h1>
+            <div class="bg-blue-600 p-2 rounded-lg text-white"><i class="fas fa-file-invoice-dollar"></i></div>
+            <span class="font-extrabold text-xl italic">Flow<span class="text-blue-600">Pro</span></span>
         </div>
-        <div class="text-[10px] bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-bold border border-blue-100 italic">v2.0 STABLE</div>
+        <div class="text-[10px] bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full font-bold">V4 CUSTOM</div>
     </header>
 
-    <main class="flex-1 p-4 md:p-8 max-w-4xl mx-auto w-full overflow-x-hidden">
+    <main class="flex-1 p-4 max-w-4xl mx-auto w-full">
 
         <section id="dashboard" class="page-section active">
-            <div class="mb-8">
-                <h2 class="text-2xl font-black text-slate-800 italic">דשבורד</h2>
-                <p class="text-slate-500 text-sm">סיכום הפעילות העסקית שלך</p>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase mb-2">הכנסות</span>
-                    <span class="text-2xl font-black text-blue-600" id="dashIncome">₪0.00</span>
+            <h2 class="text-2xl font-black mb-6">מרכז לקוחות</h2>
+            <div class="card mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold">לקוחות שמורים</h3>
+                    <button onclick="addNewClientPrompt()" class="text-xs bg-blue-600 text-white px-3 py-1 rounded-full">+ לקוח חדש</button>
                 </div>
-                <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase mb-2">מסמכים</span>
-                    <span class="text-2xl font-black text-slate-800">1</span>
-                </div>
-            </div>
-
-            <div class="mt-8 bg-blue-600 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-xl shadow-blue-100">
-                <div class="relative z-10">
-                    <h3 class="text-xl font-bold mb-2 leading-tight">מוכן להפיק את<br>החשבונית הבאה?</h3>
-                    <button onclick="navigateTo('create')" class="mt-4 bg-white text-blue-600 px-6 py-2 rounded-full font-bold text-sm">התחל עכשיו</button>
-                </div>
-                <i class="fas fa-rocket absolute -bottom-4 -left-4 text-8xl opacity-10 -rotate-12"></i>
+                <div id="clientsContainer" class="grid grid-cols-1 gap-2">
+                    </div>
             </div>
         </section>
 
         <section id="create" class="page-section">
-            <h2 class="text-2xl font-black mb-6 italic">הנפקת מסמך</h2>
+            <h2 class="text-2xl font-black mb-6">הנפקת מסמך</h2>
             <div class="space-y-4">
-                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                    <label class="text-[10px] font-bold text-slate-400 block mb-2">פרטי הלקוח</label>
-                    <input type="text" id="custName" placeholder="שם הלקוח / חברה" class="save-data w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-600 transition-all mb-4">
-                    <input type="tel" id="custPhone" placeholder="מספר טלפון" class="save-data w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-600 transition-all">
-                </div>
                 
-                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                    <label class="text-[10px] font-bold text-slate-400 block mb-2">פירוט השירות</label>
-                    <input type="text" id="itemTitle" placeholder="מה השירות?" class="save-data w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-600 transition-all mb-4">
-                    <div class="flex items-center gap-2">
-                        <span class="font-bold text-slate-400">₪</span>
-                        <input type="number" id="itemPrice" placeholder="מחיר" class="save-data w-full border-b-2 border-slate-100 p-2 outline-none focus:border-blue-600 transition-all">
+                <div class="card space-y-3">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">סוג המסמך (בחירה או כתיבה חופשית)</label>
+                    <div class="flex gap-2">
+                        <select id="docTypeSelect" onchange="checkCustomDoc(this)" class="flex-1 p-3 bg-slate-50 rounded-xl border border-slate-200 font-bold">
+                            <option value="חשבונית מס">חשבונית מס</option>
+                            <option value="קבלה">קבלה</option>
+                            <option value="הצעת מחיר">הצעת מחיר</option>
+                            <option value="custom">-- כתיבה חופשית --</option>
+                        </select>
+                        <input type="text" id="docTypeCustom" placeholder="סוג מסמך אחר..." class="hidden flex-1 p-3 bg-white rounded-xl border border-blue-200 outline-none">
                     </div>
                 </div>
 
-                <button onclick="updatePreview(); navigateTo('preview')" class="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black shadow-xl">צפה בתצוגה מקדימה</button>
+                <div class="card space-y-3">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">פרטי לקוח</label>
+                    <input type="text" id="custName" placeholder="שם הלקוח" class="w-full border-b p-2 outline-none focus:border-blue-600">
+                    <input type="tel" id="custPhone" placeholder="טלפון" class="w-full border-b p-2 outline-none">
+                </div>
+
+                <div class="card space-y-3">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">הודעה אישית ללקוח</label>
+                    <textarea id="customMsg" rows="2" placeholder="תודה על העבודה המשותפת..." class="w-full bg-slate-50 p-3 rounded-xl text-sm border-none outline-none italic"></textarea>
+                    <button onclick="autoGenerateMsg()" class="text-[10px] text-blue-600 font-bold uppercase tracking-wider">צור הודעה אוטומטית לפי שם הלקוח ✨</button>
+                </div>
+
+                <div class="card space-y-3">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">פרטי עסקה ומס</label>
+                    <input type="text" id="itemTitle" placeholder="תיאור שירות" class="w-full border-b p-2 outline-none">
+                    <div class="flex gap-4 items-center">
+                        <input type="number" id="itemPrice" placeholder="מחיר" class="flex-1 border-b p-2 outline-none">
+                        <div class="flex-1 flex items-center gap-2 border-r pr-4">
+                            <span class="text-xs font-bold text-slate-400">% מס:</span>
+                            <input type="number" id="taxPercent" value="17" class="w-16 border-b p-2 outline-none font-bold text-blue-600 text-center">
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="generateDoc()" class="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black shadow-xl shadow-blue-100">צפה והנפק מסמך</button>
             </div>
         </section>
 
-        <section id="settings" class="page-section">
-            <h2 class="text-2xl font-black mb-6 italic">הגדרות עסק</h2>
-            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-6">
-                <div class="flex flex-col items-center mb-6">
-                    <div onclick="document.getElementById('logoInput').click()" class="w-24 h-24 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex items-center justify-center cursor-pointer overflow-hidden relative">
-                        <img id="logoImg" class="hidden w-full h-full object-contain p-2" />
-                        <i id="logoIcon" class="fas fa-camera text-slate-300 text-2xl"></i>
+        <section id="preview" class="page-section">
+            <div class="no-print flex gap-2 mb-6">
+                <button onclick="window.print()" class="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold flex-1">הדפס</button>
+                <button onclick="shareWhatsApp()" class="bg-green-500 text-white px-4 py-3 rounded-xl"><i class="fab fa-whatsapp"></i></button>
+                <button onclick="navigateTo('create')" class="bg-white border px-6 py-3 rounded-xl font-bold">ערוך</button>
+            </div>
+
+            <div class="invoice-paper" id="paper">
+                <div class="flex justify-between items-start mb-16">
+                    <div>
+                        <img id="outLogo" class="hidden max-h-16 mb-4" />
+                        <h1 id="outBiz" class="text-2xl font-black text-blue-600 italic">שם העסק</h1>
+                        <p id="outDetails" class="text-[10px] text-slate-400">פרטי עסק</p>
                     </div>
+                    <div class="text-left">
+                        <h2 id="outType" class="text-xl font-bold uppercase tracking-tighter">מסמך</h2>
+                        <p class="text-[10px] text-slate-300 mt-1">#<span id="outNum">1001</span></p>
+                    </div>
+                </div>
+
+                <div class="border-r-4 border-blue-600 pr-4 mb-10">
+                    <p class="text-[9px] text-slate-400 font-bold uppercase">לקוח:</p>
+                    <h3 id="outCust" class="text-xl font-bold italic">שם הלקוח</h3>
+                </div>
+
+                <div id="outMsg" class="mb-10 text-sm text-slate-500 italic border-t border-b py-4 px-2 bg-slate-50/50">
+                    הודעה אישית תופיע כאן...
+                </div>
+
+                <table class="w-full text-right mb-10">
+                    <tr class="border-b-2 border-slate-900 text-sm">
+                        <th class="py-2">תיאור השירות</th>
+                        <th class="py-2 text-left">סה"כ</th>
+                    </tr>
+                    <tr class="border-b border-slate-100">
+                        <td id="outItem" class="py-6">תיאור פריט</td>
+                        <td id="outPrice" class="py-6 text-left font-bold">₪0.00</td>
+                    </tr>
+                </table>
+
+                <div class="flex justify-end space-y-1 flex-col items-end">
+                    <div class="text-xs text-slate-400 flex justify-between w-32"><span>סה"כ:</span> <span id="outSub">₪0</span></div>
+                    <div class="text-xs text-slate-400 flex justify-between w-32 border-b pb-1"><span>מס (<span id="outTaxRate">17</span>%):</span> <span id="outTaxVal">₪0</span></div>
+                    <div class="text-xl font-black flex justify-between w-40 pt-1 text-blue-600 underline"><span>לתשלום:</span> <span id="outFinal">₪0</span></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <nav class="no-print fixed bottom-0 left-0 w-full bg-white border-t flex justify-around items-center h-20 z-50">
+        <button onclick="navigateTo('dashboard')" class="flex flex-col items-center gap-1 text-slate-400 active:text-blue-600">
+            <i class="fas fa-users text-lg"></i><span class="text-[10px] font-bold">לקוחות</span>
+        </button>
+        <button onclick="navigateTo('create')" class="flex flex-col items-center gap-1 text-blue-600">
+            <div class="bg-blue-600 w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg -mt-10 border-4 border-white"><i class="fas fa-plus"></i></div>
+            <span class="text-[10px] font-bold mt-1">הנפקה</span>
+        </button>
+        <button onclick="navigateTo('preview')" class="flex flex-col items-center gap-1 text-slate-400">
+            <i class="fas fa-eye text-lg"></i><span class="text-[10px] font-bold">צפייה</span>
+        </button>
+    </nav>
+
+    <script>
+        // ניהול לקוחות
+        let clients = JSON.parse(localStorage.getItem('saved_clients')) || [];
+
+        function renderClients() {
+            const container = document.getElementById('clientsContainer');
+            container.innerHTML = clients.length ? '' : '<p class="text-center text-xs text-slate-300 py-4">אין לקוחות שמורים</p>';
+            clients.forEach((c, index) => {
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 cursor-pointer transition";
+                div.innerHTML = `
+                    <div onclick="selectClient(${index})">
+                        <p class="font-bold text-sm text-slate-700">${c.name}</p>
+                        <p class="text-[10px] text-slate-400">${c.phone}</p>
+                    </div>
+                    <button onclick="deleteClient(${index})" class="text-red-300 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function addNewClientPrompt() {
+            const name = prompt("שם הלקוח החדש:");
+            const phone = prompt("טלפון הלקוח:");
+            if(name && phone) {
+                clients.push({ name, phone });
+                localStorage.setItem('saved_clients', JSON.stringify(clients));
+                renderClients();
+            }
+        }
+
+        function deleteClient(index) {
+            if(confirm("למחוק את הלקוח?")) {
+                clients.splice(index, 1);
+                localStorage.setItem('saved_clients', JSON.stringify(clients));
+                renderClients();
+            }
+        }
+
+        function selectClient(index) {
+            const c = clients[index];
+            document.getElementById('custName').value = c.name;
+            document.getElementById('custPhone').value = c.phone;
+            navigateTo('create');
+        }
+
+        // ניהול סוג מסמך חופשי
+        function checkCustomDoc(el) {
+            const customInp = document.getElementById('docTypeCustom');
+            if(el.value === 'custom') {
+                customInp.classList.remove('hidden');
+                el.classList.add('hidden');
+            }
+        }
+
+        // הודעה אוטומטית
+        function autoGenerateMsg() {
+            const name = document.getElementById('custName').value;
+            if(!name) return alert("אנא הזן שם לקוח קודם");
+            const msgs = [
+                `שלום ${name}, תודה על הבחירה בנו! מצורף המסמך המבוקש.`,
+                `לכבוד ${name}, שמחנו לתת שירות. מצורף פירוט החיוב.`,
+                `היי ${name}, תודה על העבודה המשותפת! נשמח לעמוד לרשותך שוב.`
+            ];
+            document.getElementById('customMsg').value = msgs[Math.floor(Math.random() * msgs.length)];
+        }
+
+        // הנפקה
+        function generateDoc() {
+            const val = id => document.getElementById(id).value;
+            const docType = val('docTypeSelect') === 'custom' ? val('docTypeCustom') : val('docTypeSelect');
+            
+            document.getElementById('outType').innerText = docType;
+            document.getElementById('outCust').innerText = val('custName') || "שם לקוח";
+            document.getElementById('outItem').innerText = val('itemTitle') || "תיאור";
+            document.getElementById('outMsg').innerText = val('customMsg') || "תודה רבה!";
+            
+            const price = parseFloat(val('itemPrice')) || 0;
+            const taxRate = parseFloat(val('taxPercent')) || 0;
+            const taxVal = price * (taxRate / 100);
+            
+            document.getElementById('outPrice').innerText = "₪" + price.toLocaleString();
+            document.getElementById('outSub').innerText = "₪" + price.toLocaleString();
+            document.getElementById('outTaxRate').innerText = taxRate;
+            document.getElementById('outTaxVal').innerText = "₪" + taxVal.toLocaleString();
+            document.getElementById('outFinal').innerText = "₪" + (price + taxVal).toLocaleString();
+
+            navigateTo('preview');
+        }
+
+        function shareWhatsApp() {
+            const phone = document.getElementById('custPhone').value;
+            const docType = document.getElementById('outType').innerText;
+            const text = encodeURIComponent(`היי, מצורף מסמך ${docType}. לפרטים נוספים צור קשר.`);
+            window.open(`https://wa.me/${phone}?text=${text}`);
+        }
+
+        function navigateTo(id) {
+            document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            window.scrollTo(0,0);
+        }
+
+        window.onload = () => { renderClients(); };
+    </script>
+</body>
+</html>                    </div>
                     <input type="file" id="logoInput" class="hidden" accept="image/*">
                     <p class="text-[10px] font-bold text-slate-400 mt-2 uppercase">לחץ להעלאת לוגו</p>
                 </div>
