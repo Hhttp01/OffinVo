@@ -1,80 +1,1973 @@
-/**
- * --- Storage Service ---
- * אחראי על כל הקשר עם ה-LocalStorage וניהול המידע
- */
-
-const STORAGE_KEYS = {
-    CLIENTS: 'biz_app_clients',
-    HISTORY: 'biz_app_history'
-};
-
-const StorageService = {
-    // --- פעולות בסיסיות ---
-    save: (key, data) => {
-        try {
-            localStorage.setItem(key, JSON.stringify(data));
-        } catch (e) {
-            console.error("Error saving to localStorage", e);
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת ניהול לקוחות ומסמכים</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
         }
-    },
-
-    load: (key) => {
-        try {
-            const data = localStorage.getItem(key);
-            return data ? JSON.parse(data) : [];
-        } catch (e) {
-            console.error("Error loading from localStorage", e);
-            return [];
-        }
-    },
-
-    // --- ניהול לקוחות ---
-    getClients: () => StorageService.load(STORAGE_KEYS.CLIENTS),
-    
-    addClient: (client) => {
-        const clients = StorageService.getClients();
-        clients.push(client);
-        StorageService.save(STORAGE_KEYS.CLIENTS, clients);
-        return clients;
-    },
-
-    // --- ניהול היסטוריית מסמכים ---
-    getHistory: () => StorageService.load(STORAGE_KEYS.HISTORY),
-    
-    addDocument: (doc) => {
-        const history = StorageService.getHistory();
-        const newDoc = {
-            ...doc,
-            id: Date.now(), // מזהה ייחודי למסמך
-            timestamp: new Date().toISOString()
-        };
-        history.push(newDoc);
-        StorageService.save(STORAGE_KEYS.HISTORY, history);
-        return history;
-    },
-
-    updateDocument: (docId, newData) => {
-        const history = StorageService.getHistory();
-        const index = history.findIndex(d => d.id === docId);
-        if (index !== -1) {
-            history[index] = { ...history[index], ...newData };
-            StorageService.save(STORAGE_KEYS.HISTORY, history);
-        }
-        return history;
-    },
-
-    // --- שאילתות וסיכומים ---
-    getClientStats: (clientName) => {
-        const history = StorageService.getHistory();
-        const clientDocs = history.filter(d => d.client === clientName);
         
-        return {
-            paid: clientDocs.filter(d => d.paid).reduce((sum, d) => sum + d.total, 0),
-            pending: clientDocs.filter(d => !d.paid).reduce((sum, d) => sum + d.total, 0),
-            docs: clientDocs
-        };
-    }
-};
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            line-height: 1.6;
+        }
+        
+        .navbar {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            height: calc(100vh - 80px);
+            position: sticky;
+            top: 20px;
+        }
+        
+        .sidebar .nav-link {
+            border-radius: 8px;
+            margin: 5px 0;
+            color: #555;
+            transition: all 0.3s;
+        }
+        
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        
+        .main-content {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.05);
+            padding: 25px;
+            min-height: calc(100vh - 80px);
+        }
+        
+        .stat-card {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .client-item, .document-item {
+            border-left: 4px solid var(--secondary-color);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            padding: 15px;
+            background-color: #f8fafc;
+            transition: all 0.3s;
+        }
+        
+        .client-item:hover, .document-item:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: translateX(-5px);
+        }
+        
+        .document-item.paid {
+            border-left-color: var(--success-color);
+        }
+        
+        .document-item.pending {
+            border-left-color: var(--warning-color);
+        }
+        
+        .badge-paid {
+            background-color: var(--success-color);
+        }
+        
+        .badge-pending {
+            background-color: var(--warning-color);
+        }
+        
+        .action-buttons {
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .client-item:hover .action-buttons, .document-item:hover .action-buttons {
+            opacity: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                height: auto;
+                margin-bottom: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ניווט ראשי -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-briefcase-fill me-2"></i>
+                מערכת ניהול עסקי
+            </a>
+            <div class="navbar-text">
+                <span id="current-date"></span>
+            </div>
+        </div>
+    </nav>
 
-// ייצוא אופציונלי אם תרצה להשתמש ב-Modules בעתיד
-// export default StorageService;
+    <div class="container-fluid py-4">
+        <div class="row">
+            <!-- סרגל צד -->
+            <div class="col-lg-3 col-md-4 mb-4">
+                <div class="sidebar p-3">
+                    <h5 class="mb-4 border-bottom pb-2">
+                        <i class="bi bi-menu-button-wide me-2"></i>תפריט ניהול
+                    </h5>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#" data-section="dashboard">
+                                <i class="bi bi-speedometer2 me-2"></i>לוח בקרה
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="clients">
+                                <i class="bi bi-people me-2"></i>לקוחות
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="documents">
+                                <i class="bi bi-file-earmark-text me-2"></i>מסמכים
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="add-client">
+                                <i class="bi bi-person-plus me-2"></i>הוספת לקוח
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="add-document">
+                                <i class="bi bi-file-earmark-plus me-2"></i>הוספת מסמך
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="reports">
+                                <i class="bi bi-graph-up me-2"></i>דוחות וסטטיסטיקה
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" data-section="backup">
+                                <i class="bi bi-cloud-arrow-up me-2"></i>גיבוי ושחזור
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <div class="mt-5 pt-3 border-top">
+                        <h6 class="mb-3">סטטיסטיקה מהירה</h6>
+                        <div class="small">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>סה"כ לקוחות:</span>
+                                <span id="quick-clients-count" class="fw-bold">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span>מסמכים פעילים:</span>
+                                <span id="quick-docs-count" class="fw-bold">0</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>יתרה משולמת:</span>
+                                <span id="quick-paid-total" class="fw-bold text-success">₪0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- תוכן ראשי -->
+            <div class="col-lg-9 col-md-8">
+                <div class="main-content">
+                    <!-- לוח בקרה -->
+                    <section id="dashboard-section" class="content-section">
+                        <h3 class="mb-4">
+                            <i class="bi bi-speedometer2 me-2"></i>לוח בקרה
+                        </h3>
+                        
+                        <div class="row mb-5">
+                            <div class="col-md-3 col-sm-6 mb-4">
+                                <div class="stat-card card text-white bg-primary">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h5 class="card-title">לקוחות</h5>
+                                                <h2 id="total-clients" class="mb-0">0</h2>
+                                            </div>
+                                            <i class="bi bi-people display-6 opacity-50"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3 col-sm-6 mb-4">
+                                <div class="stat-card card text-white bg-success">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h5 class="card-title">שולם</h5>
+                                                <h2 id="total-paid" class="mb-0">₪0</h2>
+                                            </div>
+                                            <i class="bi bi-cash-coin display-6 opacity-50"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3 col-sm-6 mb-4">
+                                <div class="stat-card card text-white bg-warning">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h5 class="card-title">ממתין לתשלום</h5>
+                                                <h2 id="total-pending" class="mb-0">₪0</h2>
+                                            </div>
+                                            <i class="bi bi-clock-history display-6 opacity-50"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3 col-sm-6 mb-4">
+                                <div class="stat-card card text-white bg-info">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h5 class="card-title">מסמכים</h5>
+                                                <h2 id="total-documents" class="mb-0">0</h2>
+                                            </div>
+                                            <i class="bi bi-files display-6 opacity-50"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">לקוחות אחרונים</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="recent-clients-list">
+                                            <p class="text-muted">אין לקוחות עדיין</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">מסמכים אחרונים</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div id="recent-documents-list">
+                                            <p class="text-muted">אין מסמכים עדיין</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- ניהול לקוחות -->
+                    <section id="clients-section" class="content-section d-none">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h3>
+                                <i class="bi bi-people me-2"></i>ניהול לקוחות
+                            </h3>
+                            <button class="btn btn-primary" data-section="add-client">
+                                <i class="bi bi-person-plus me-1"></i>לקוח חדש
+                            </button>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <input type="text" id="client-search" class="form-control" placeholder="חיפוש לקוחות...">
+                                    <button class="btn btn-outline-secondary" type="button">
+                                        <i class="bi bi-search"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="clients-list">
+                            <!-- רשימת הלקוחות תוטען כאן -->
+                        </div>
+                    </section>
+                    
+                    <!-- הוספת לקוח -->
+                    <section id="add-client-section" class="content-section d-none">
+                        <h3 class="mb-4">
+                            <i class="bi bi-person-plus me-2"></i>הוספת לקוח חדש
+                        </h3>
+                        
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <form id="add-client-form">
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <label for="client-name" class="form-label">שם הלקוח *</label>
+                                                    <input type="text" class="form-control" id="client-name" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label for="client-phone" class="form-label">טלפון</label>
+                                                    <input type="tel" class="form-control" id="client-phone">
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <label for="client-email" class="form-label">אימייל</label>
+                                                    <input type="email" class="form-control" id="client-email">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label for="client-company" class="form-label">חברה</label>
+                                                    <input type="text" class="form-control" id="client-company">
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label for="client-address" class="form-label">כתובת</label>
+                                                <textarea class="form-control" id="client-address" rows="2"></textarea>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label for="client-notes" class="form-label">הערות</label>
+                                                <textarea class="form-control" id="client-notes" rows="3"></textarea>
+                                            </div>
+                                            
+                                            <div class="d-flex justify-content-end">
+                                                <button type="button" class="btn btn-secondary me-2" data-section="clients">ביטול</button>
+                                                <button type="submit" class="btn btn-primary">הוספת לקוח</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">טיפים</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul class="small text-muted">
+                                            <li class="mb-2">שדה חובה מסומן ב-*</li>
+                                            <li class="mb-2">מומלץ למלא לפחות שם וטלפון</li>
+                                            <li class="mb-2">הערות יכולות לכלול מידע כמו העדפות או פרטים חשובים</li>
+                                            <li>ניתן לעדכן פרטי לקוח מאוחר יותר</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- ניהול מסמכים -->
+                    <section id="documents-section" class="content-section d-none">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h3>
+                                <i class="bi bi-file-earmark-text me-2"></i>ניהול מסמכים
+                            </h3>
+                            <button class="btn btn-primary" data-section="add-document">
+                                <i class="bi bi-file-earmark-plus me-1"></i>מסמך חדש
+                            </button>
+                        </div>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <input type="text" id="document-search" class="form-control" placeholder="חיפוש מסמכים...">
+                                    <button class="btn btn-outline-secondary" type="button">
+                                        <i class="bi bi-search"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <select id="document-filter" class="form-select">
+                                    <option value="all">כל המסמכים</option>
+                                    <option value="paid">שולמו בלבד</option>
+                                    <option value="pending">ממתינים לתשלום</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="documents-list">
+                            <!-- רשימת המסמכים תוטען כאן -->
+                        </div>
+                    </section>
+                    
+                    <!-- הוספת מסמך -->
+                    <section id="add-document-section" class="content-section d-none">
+                        <h3 class="mb-4">
+                            <i class="bi bi-file-earmark-plus me-2"></i>הוספת מסמך חדש
+                        </h3>
+                        
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <form id="add-document-form">
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <label for="document-client" class="form-label">לקוח *</label>
+                                                    <select class="form-control" id="document-client" required>
+                                                        <option value="">בחר לקוח</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label for="document-type" class="form-label">סוג מסמך *</label>
+                                                    <select class="form-control" id="document-type" required>
+                                                        <option value="">בחר סוג</option>
+                                                        <option value="invoice">חשבונית</option>
+                                                        <option value="receipt">קבלה</option>
+                                                        <option value="estimate">הערכת מחיר</option>
+                                                        <option value="contract">חוזה</option>
+                                                        <option value="other">אחר</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <label for="document-number" class="form-label">מספר מסמך</label>
+                                                    <input type="text" class="form-control" id="document-number">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label for="document-date" class="form-label">תאריך</label>
+                                                    <input type="date" class="form-control" id="document-date" value="">
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <label for="document-total" class="form-label">סכום *</label>
+                                                    <input type="number" class="form-control" id="document-total" min="0" step="0.01" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label for="document-paid" class="form-label">סטטוס תשלום</label>
+                                                    <select class="form-control" id="document-paid">
+                                                        <option value="false">ממתין לתשלום</option>
+                                                        <option value="true">שולם</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label for="document-description" class="form-label">תיאור המסמך</label>
+                                                <textarea class="form-control" id="document-description" rows="3"></textarea>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label for="document-notes" class="form-label">הערות</label>
+                                                <textarea class="form-control" id="document-notes" rows="2"></textarea>
+                                            </div>
+                                            
+                                            <div class="d-flex justify-content-end">
+                                                <button type="button" class="btn btn-secondary me-2" data-section="documents">ביטול</button>
+                                                <button type="submit" class="btn btn-primary">הוספת מסמך</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-lg-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">טיפים</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <ul class="small text-muted">
+                                            <li class="mb-2">חלק מהלקוחות? הוסף לקוח חדש תחילה</li>
+                                            <li class="mb-2">מסמך שלא שולם יופיע בסטטוס "ממתין לתשלום"</li>
+                                            <li class="mb-2">בדו"חות תוכל לראות סיכום לפי לקוח</li>
+                                            <li>ניתן לשנות סטטוס תשלום מאוחר יותר</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                
+                                <div class="card mt-3">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">סטטיסטיקה מהירה</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="small">
+                                            <div class="d-flex justify-content-between mb-2">
+                                                <span>לקוחות פעילים:</span>
+                                                <span id="doc-clients-count" class="fw-bold">0</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between">
+                                                <span>סכום ממוצע למסמך:</span>
+                                                <span id="doc-average-amount" class="fw-bold">₪0</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- דוחות וסטטיסטיקה -->
+                    <section id="reports-section" class="content-section d-none">
+                        <h3 class="mb-4">
+                            <i class="bi bi-graph-up me-2"></i>דוחות וסטטיסטיקה
+                        </h3>
+                        
+                        <div class="row mb-4">
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">סטטיסטיקה לפי לקוח</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <select id="report-client-select" class="form-select mb-3">
+                                            <option value="">בחר לקוח לראות סטטיסטיקה</option>
+                                        </select>
+                                        
+                                        <div id="client-report" class="d-none">
+                                            <div class="row mb-4">
+                                                <div class="col-md-4">
+                                                    <div class="card bg-light">
+                                                        <div class="card-body text-center">
+                                                            <h6 class="text-muted">סה"כ שולם</h6>
+                                                            <h3 id="report-paid-total" class="text-success">₪0</h3>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="card bg-light">
+                                                        <div class="card-body text-center">
+                                                            <h6 class="text-muted">ממתין לתשלום</h6>
+                                                            <h3 id="report-pending-total" class="text-warning">₪0</h3>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="card bg-light">
+                                                        <div class="card-body text-center">
+                                                            <h6 class="text-muted">סך הכל</h6>
+                                                            <h3 id="report-total" class="text-primary">₪0</h3>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <h6>מסמכים של לקוח זה:</h6>
+                                            <div id="client-documents-list">
+                                                <!-- מסמכי הלקוח יוצגו כאן -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">סיכום כללי</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <h6>פעילות אחרונה:</h6>
+                                            <div class="small">
+                                                <div id="latest-activity">
+                                                    <p class="text-muted">אין פעילות עדיין</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div>
+                                            <h6>לקוחות מובילים:</h6>
+                                            <div id="top-clients">
+                                                <p class="text-muted">אין מספיק נתונים</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <!-- גיבוי ושחזור -->
+                    <section id="backup-section" class="content-section d-none">
+                        <h3 class="mb-4">
+                            <i class="bi bi-cloud-arrow-up me-2"></i>גיבוי ושחזור נתונים
+                        </h3>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-success text-white">
+                                        <h5 class="mb-0">גיבוי נתונים</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="card-text">יצוא כל הנתונים בקובץ JSON אותו ניתן לשמור במחשב שלך.</p>
+                                        <div class="mb-3">
+                                            <label for="backup-filename" class="form-label">שם הקובץ</label>
+                                            <input type="text" class="form-control" id="backup-filename" value="גיבוי_נתונים">
+                                        </div>
+                                        <button id="export-data-btn" class="btn btn-success">
+                                            <i class="bi bi-download me-1"></i>יצוא נתונים
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-warning text-white">
+                                        <h5 class="mb-0">שחזור נתונים</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="card-text">ייבוא נתונים מקובץ JSON. <strong>זה ימחק את כל הנתונים הקיימים!</strong></p>
+                                        <div class="mb-3">
+                                            <label for="import-file" class="form-label">בחירת קובץ</label>
+                                            <input type="file" class="form-control" id="import-file" accept=".json">
+                                        </div>
+                                        <button id="import-data-btn" class="btn btn-warning">
+                                            <i class="bi bi-upload me-1"></i>ייבוא נתונים
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">ניהול גיבויים מקומיים</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p>המערכת שומרת גיבויים אוטומטיים ב-localStorage. ניתן לנקות גיבויים ישנים.</p>
+                                        <div class="mb-3">
+                                            <label for="backup-retention" class="form-label">מספר גיבויים לשמירה</label>
+                                            <input type="number" class="form-control" id="backup-retention" value="5" min="1" max="20">
+                                        </div>
+                                        <button id="clean-backups-btn" class="btn btn-outline-danger me-2">
+                                            <i class="bi bi-trash me-1"></i>ניקוי גיבויים ישנים
+                                        </button>
+                                        <button id="create-backup-btn" class="btn btn-outline-primary">
+                                            <i class="bi bi-plus-circle me-1"></i>יצירת גיבוי עכשיו
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal לעריכת לקוח -->
+    <div class="modal fade" id="editClientModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">עריכת לקוח</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="edit-client-form">
+                        <input type="hidden" id="edit-client-id">
+                        <div class="mb-3">
+                            <label for="edit-client-name" class="form-label">שם הלקוח</label>
+                            <input type="text" class="form-control" id="edit-client-name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-client-phone" class="form-label">טלפון</label>
+                            <input type="tel" class="form-control" id="edit-client-phone">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-client-email" class="form-label">אימייל</label>
+                            <input type="email" class="form-control" id="edit-client-email">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-client-address" class="form-label">כתובת</label>
+                            <textarea class="form-control" id="edit-client-address" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-client-notes" class="form-label">הערות</label>
+                            <textarea class="form-control" id="edit-client-notes" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ביטול</button>
+                    <button type="button" class="btn btn-primary" id="save-client-btn">שמירת שינויים</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal לעריכת מסמך -->
+    <div class="modal fade" id="editDocumentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">עריכת מסמך</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="edit-document-form">
+                        <input type="hidden" id="edit-document-id">
+                        <div class="mb-3">
+                            <label for="edit-document-client" class="form-label">לקוח</label>
+                            <select class="form-control" id="edit-document-client" required>
+                                <option value="">בחר לקוח</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-document-total" class="form-label">סכום</label>
+                            <input type="number" class="form-control" id="edit-document-total" min="0" step="0.01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-document-paid" class="form-label">סטטוס תשלום</label>
+                            <select class="form-control" id="edit-document-paid">
+                                <option value="false">ממתין לתשלום</option>
+                                <option value="true">שולם</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit-document-description" class="form-label">תיאור</label>
+                            <textarea class="form-control" id="edit-document-description" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ביטול</button>
+                    <button type="button" class="btn btn-primary" id="save-document-btn">שמירת שינויים</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS עם Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- קוד JavaScript -->
+    <script>
+        // שירות האחסון (StorageService) עם כל הפונקציות
+        const STORAGE_KEYS = {
+            CLIENTS: 'biz_app_clients',
+            HISTORY: 'biz_app_history',
+            BACKUPS: 'biz_app_backups'
+        };
+
+        const StorageService = {
+            // --- פעולות בסיסיות ---
+            save: (key, data) => {
+                try {
+                    localStorage.setItem(key, JSON.stringify(data));
+                } catch (e) {
+                    console.error("Error saving to localStorage", e);
+                    alert("שגיאה בשמירת הנתונים. ייתכן שאין מספיק מקום באחסון המקומי.");
+                }
+            },
+
+            load: (key) => {
+                try {
+                    const data = localStorage.getItem(key);
+                    return data ? JSON.parse(data) : [];
+                } catch (e) {
+                    console.error("Error loading from localStorage", e);
+                    return [];
+                }
+            },
+
+            // --- ניהול לקוחות ---
+            getClients: () => {
+                const clients = StorageService.load(STORAGE_KEYS.CLIENTS);
+                // לוודא שלכל לקוח יש שדות נדרשים
+                return clients.map(client => ({
+                    id: client.id || Date.now(),
+                    name: client.name || 'ללא שם',
+                    phone: client.phone || '',
+                    email: client.email || '',
+                    company: client.company || '',
+                    address: client.address || '',
+                    notes: client.notes || '',
+                    active: client.active !== false,
+                    createdAt: client.createdAt || new Date().toISOString()
+                }));
+            },
+            
+            addClient: (client) => {
+                const clients = StorageService.getClients();
+                
+                // בדיקת ולידציה
+                if (!client.name || client.name.trim() === '') {
+                    throw new Error("שם הלקוח הוא שדה חובה");
+                }
+                
+                // בדיקה אם הלקוח כבר קיים
+                const existingClient = clients.find(c => 
+                    c.name.toLowerCase() === client.name.toLowerCase() || 
+                    (client.email && c.email === client.email)
+                );
+                
+                if (existingClient) {
+                    throw new Error("לקוח עם שם או אימייל זה כבר קיים במערכת");
+                }
+                
+                const newClient = {
+                    id: Date.now(),
+                    name: client.name.trim(),
+                    phone: client.phone || '',
+                    email: client.email || '',
+                    company: client.company || '',
+                    address: client.address || '',
+                    notes: client.notes || '',
+                    active: true,
+                    createdAt: new Date().toISOString()
+                };
+                
+                clients.push(newClient);
+                StorageService.save(STORAGE_KEYS.CLIENTS, clients);
+                return newClient;
+            },
+
+            updateClient: (clientId, updates) => {
+                const clients = StorageService.getClients();
+                const index = clients.findIndex(c => c.id === clientId);
+                
+                if (index !== -1) {
+                    clients[index] = { ...clients[index], ...updates };
+                    StorageService.save(STORAGE_KEYS.CLIENTS, clients);
+                    return clients[index];
+                }
+                
+                return null;
+            },
+
+            deleteClient: (clientId) => {
+                const clients = StorageService.getClients();
+                const filtered = clients.filter(c => c.id !== clientId);
+                StorageService.save(STORAGE_KEYS.CLIENTS, filtered);
+                return filtered;
+            },
+
+            // --- ניהול מסמכים ---
+            getHistory: () => {
+                const history = StorageService.load(STORAGE_KEYS.HISTORY);
+                return history.map(doc => ({
+                    id: doc.id || Date.now(),
+                    client: doc.client || 'ללא לקוח',
+                    type: doc.type || 'other',
+                    documentNumber: doc.documentNumber || '',
+                    total: doc.total || 0,
+                    paid: Boolean(doc.paid),
+                    description: doc.description || '',
+                    notes: doc.notes || '',
+                    timestamp: doc.timestamp || new Date().toISOString(),
+                    date: doc.date || new Date().toISOString().split('T')[0]
+                }));
+            },
+            
+            addDocument: (doc) => {
+                const history = StorageService.getHistory();
+                
+                // ולידציה
+                if (!doc.client || doc.client.trim() === '') {
+                    throw new Error("יש לבחור לקוח");
+                }
+                
+                if (!doc.total || doc.total <= 0) {
+                    throw new Error("סכום המסמך חייב להיות גדול מ-0");
+                }
+                
+                const newDoc = {
+                    id: Date.now(),
+                    client: doc.client.trim(),
+                    type: doc.type || 'invoice',
+                    documentNumber: doc.documentNumber || '',
+                    total: parseFloat(doc.total),
+                    paid: Boolean(doc.paid),
+                    description: doc.description || '',
+                    notes: doc.notes || '',
+                    timestamp: new Date().toISOString(),
+                    date: doc.date || new Date().toISOString().split('T')[0]
+                };
+                
+                history.push(newDoc);
+                StorageService.save(STORAGE_KEYS.HISTORY, history);
+                return newDoc;
+            },
+
+            updateDocument: (docId, newData) => {
+                const history = StorageService.getHistory();
+                const index = history.findIndex(d => d.id === docId);
+                
+                if (index !== -1) {
+                    history[index] = { 
+                        ...history[index], 
+                        ...newData,
+                        total: parseFloat(newData.total) || history[index].total
+                    };
+                    StorageService.save(STORAGE_KEYS.HISTORY, history);
+                    return history[index];
+                }
+                
+                return null;
+            },
+
+            deleteDocument: (docId) => {
+                const history = StorageService.getHistory();
+                const filtered = history.filter(d => d.id !== docId);
+                StorageService.save(STORAGE_KEYS.HISTORY, filtered);
+                return filtered;
+            },
+
+            // --- שאילתות וסיכומים ---
+            getClientStats: (clientName) => {
+                const history = StorageService.getHistory();
+                const clientDocs = history.filter(d => d.client === clientName);
+                
+                const paidTotal = clientDocs
+                    .filter(d => d.paid)
+                    .reduce((sum, d) => sum + d.total, 0);
+                    
+                const pendingTotal = clientDocs
+                    .filter(d => !d.paid)
+                    .reduce((sum, d) => sum + d.total, 0);
+                
+                return {
+                    paid: paidTotal,
+                    pending: pendingTotal,
+                    total: paidTotal + pendingTotal,
+                    docs: clientDocs
+                };
+            },
+
+            getOverallStats: () => {
+                const clients = StorageService.getClients();
+                const history = StorageService.getHistory();
+                
+                const paidTotal = history
+                    .filter(d => d.paid)
+                    .reduce((sum, d) => sum + d.total, 0);
+                    
+                const pendingTotal = history
+                    .filter(d => !d.paid)
+                    .reduce((sum, d) => sum + d.total, 0);
+                
+                return {
+                    totalClients: clients.length,
+                    activeClients: clients.filter(c => c.active).length,
+                    totalDocuments: history.length,
+                    paidTotal: paidTotal,
+                    pendingTotal: pendingTotal,
+                    grandTotal: paidTotal + pendingTotal
+                };
+            },
+
+            // --- גיבוי ושחזור ---
+            exportAllData: () => {
+                return {
+                    clients: StorageService.getClients(),
+                    history: StorageService.getHistory(),
+                    exportDate: new Date().toISOString(),
+                    version: '1.0'
+                };
+            },
+
+            importData: (data) => {
+                if (data.clients && Array.isArray(data.clients)) {
+                    StorageService.save(STORAGE_KEYS.CLIENTS, data.clients);
+                }
+                
+                if (data.history && Array.isArray(data.history)) {
+                    StorageService.save(STORAGE_KEYS.HISTORY, data.history);
+                }
+                
+                return true;
+            },
+
+            createBackup: () => {
+                const backupData = StorageService.exportAllData();
+                const backups = StorageService.load(STORAGE_KEYS.BACKUPS) || [];
+                
+                const backup = {
+                    id: Date.now(),
+                    timestamp: new Date().toISOString(),
+                    data: backupData
+                };
+                
+                backups.push(backup);
+                
+                // שמירה מרבית של 10 גיבויים
+                if (backups.length > 10) {
+                    backups.splice(0, backups.length - 10);
+                }
+                
+                StorageService.save(STORAGE_KEYS.BACKUPS, backups);
+                return backup;
+            },
+
+            getBackups: () => {
+                return StorageService.load(STORAGE_KEYS.BACKUPS) || [];
+            },
+
+            cleanOldBackups: (keep = 5) => {
+                const backups = StorageService.getBackups();
+                if (backups.length > keep) {
+                    const cleaned = backups.slice(-keep);
+                    StorageService.save(STORAGE_KEYS.BACKUPS, cleaned);
+                    return cleaned;
+                }
+                return backups;
+            }
+        };
+
+        // אפליקציה ראשית
+        const App = {
+            init: function() {
+                this.setupEventListeners();
+                this.updateCurrentDate();
+                this.loadInitialData();
+                this.showSection('dashboard');
+                
+                // עדכון תאריך כל דקה
+                setInterval(() => this.updateCurrentDate(), 60000);
+            },
+            
+            updateCurrentDate: function() {
+                const now = new Date();
+                const options = { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                };
+                document.getElementById('current-date').textContent = 
+                    now.toLocaleDateString('he-IL', options);
+            },
+            
+            setupEventListeners: function() {
+                // ניווט תפריט צד
+                document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const section = link.getAttribute('data-section');
+                        this.showSection(section);
+                    });
+                });
+                
+                // כפתורים עם data-section
+                document.querySelectorAll('button[data-section]').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const section = button.getAttribute('data-section');
+                        this.showSection(section);
+                    });
+                });
+                
+                // הוספת לקוח
+                document.getElementById('add-client-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.addNewClient();
+                });
+                
+                // הוספת מסמך
+                document.getElementById('add-document-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.addNewDocument();
+                });
+                
+                // עריכת לקוח
+                document.getElementById('save-client-btn').addEventListener('click', () => {
+                    this.saveClientChanges();
+                });
+                
+                // עריכת מסמך
+                document.getElementById('save-document-btn').addEventListener('click', () => {
+                    this.saveDocumentChanges();
+                });
+                
+                // יצוא נתונים
+                document.getElementById('export-data-btn').addEventListener('click', () => {
+                    this.exportData();
+                });
+                
+                // ייבוא נתונים
+                document.getElementById('import-data-btn').addEventListener('click', () => {
+                    this.importData();
+                });
+                
+                // יצירת גיבוי
+                document.getElementById('create-backup-btn').addEventListener('click', () => {
+                    this.createBackup();
+                });
+                
+                // ניקוי גיבויים
+                document.getElementById('clean-backups-btn').addEventListener('click', () => {
+                    this.cleanOldBackups();
+                });
+                
+                // חיפוש לקוחות
+                document.getElementById('client-search').addEventListener('input', (e) => {
+                    this.filterClients(e.target.value);
+                });
+                
+                // חיפוש מסמכים
+                document.getElementById('document-search').addEventListener('input', (e) => {
+                    this.filterDocuments(e.target.value);
+                });
+                
+                // סינון מסמכים
+                document.getElementById('document-filter').addEventListener('change', (e) => {
+                    this.filterDocumentsByStatus(e.target.value);
+                });
+                
+                // דוחות - בחירת לקוח
+                document.getElementById('report-client-select').addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        this.showClientReport(e.target.value);
+                    } else {
+                        document.getElementById('client-report').classList.add('d-none');
+                    }
+                });
+            },
+            
+            loadInitialData: function() {
+                this.updateDashboard();
+                this.loadClientsList();
+                this.loadDocumentsList();
+                this.populateClientSelects();
+                this.updateQuickStats();
+            },
+            
+            showSection: function(sectionId) {
+                // הסתרת כל הסקציות
+                document.querySelectorAll('.content-section').forEach(section => {
+                    section.classList.add('d-none');
+                });
+                
+                // הצגת הסקציה המבוקשת
+                document.getElementById(`${sectionId}-section`).classList.remove('d-none');
+                
+                // עדכון התפריט הצד
+                document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('data-section') === sectionId) {
+                        link.classList.add('active');
+                    }
+                });
+                
+                // טעינת נתונים ספציפיים לסקציה
+                switch(sectionId) {
+                    case 'dashboard':
+                        this.updateDashboard();
+                        break;
+                    case 'clients':
+                        this.loadClientsList();
+                        break;
+                    case 'documents':
+                        this.loadDocumentsList();
+                        break;
+                    case 'reports':
+                        this.loadReports();
+                        break;
+                }
+            },
+            
+            updateDashboard: function() {
+                const stats = StorageService.getOverallStats();
+                
+                // עדכון כרטיסי סטטיסטיקה
+                document.getElementById('total-clients').textContent = stats.totalClients;
+                document.getElementById('total-documents').textContent = stats.totalDocuments;
+                document.getElementById('total-paid').textContent = `₪${stats.paidTotal.toLocaleString()}`;
+                document.getElementById('total-pending').textContent = `₪${stats.pendingTotal.toLocaleString()}`;
+                
+                // לקוחות אחרונים
+                this.displayRecentClients();
+                
+                // מסמכים אחרונים
+                this.displayRecentDocuments();
+            },
+            
+            updateQuickStats: function() {
+                const stats = StorageService.getOverallStats();
+                
+                document.getElementById('quick-clients-count').textContent = stats.totalClients;
+                document.getElementById('quick-docs-count').textContent = stats.totalDocuments;
+                document.getElementById('quick-paid-total').textContent = `₪${stats.paidTotal.toLocaleString()}`;
+                
+                // סטטיסטיקה לסקציית מסמכים
+                const averageDoc = stats.totalDocuments > 0 ? 
+                    stats.grandTotal / stats.totalDocuments : 0;
+                document.getElementById('doc-average-amount').textContent = `₪${averageDoc.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+                document.getElementById('doc-clients-count').textContent = stats.totalClients;
+            },
+            
+            displayRecentClients: function() {
+                const clients = StorageService.getClients();
+                const recentClients = clients.slice(-5).reverse(); // 5 האחרונים
+                const container = document.getElementById('recent-clients-list');
+                
+                if (recentClients.length === 0) {
+                    container.innerHTML = '<p class="text-muted">אין לקוחות עדיין</p>';
+                    return;
+                }
+                
+                let html = '';
+                recentClients.forEach(client => {
+                    html += `
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                            <div>
+                                <h6 class="mb-1">${client.name}</h6>
+                                <small class="text-muted">${client.company || 'ללא חברה'} | ${client.phone || 'ללא טלפון'}</small>
+                            </div>
+                            <small class="text-muted">${new Date(client.createdAt).toLocaleDateString('he-IL')}</small>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            },
+            
+            displayRecentDocuments: function() {
+                const history = StorageService.getHistory();
+                const recentDocs = history.slice(-5).reverse(); // 5 האחרונים
+                const container = document.getElementById('recent-documents-list');
+                
+                if (recentDocs.length === 0) {
+                    container.innerHTML = '<p class="text-muted">אין מסמכים עדיין</p>';
+                    return;
+                }
+                
+                let html = '';
+                recentDocs.forEach(doc => {
+                    const statusClass = doc.paid ? 'badge-paid' : 'badge-pending';
+                    const statusText = doc.paid ? 'שולם' : 'ממתין';
+                    
+                    html += `
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                            <div>
+                                <h6 class="mb-1">${doc.client}</h6>
+                                <small class="text-muted">${doc.type} | ${doc.description || 'ללא תיאור'}</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="badge ${statusClass}">${statusText}</div>
+                                <div class="fw-bold">₪${doc.total.toLocaleString()}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            },
+            
+            loadClientsList: function() {
+                const clients = StorageService.getClients();
+                const container = document.getElementById('clients-list');
+                
+                if (clients.length === 0) {
+                    container.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            עדיין אין לקוחות במערכת. הוסף לקוח ראשון בלשונית "הוספת לקוח".
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                clients.forEach(client => {
+                    const stats = StorageService.getClientStats(client.name);
+                    
+                    html += `
+                        <div class="client-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-1">${client.name}</h5>
+                                    <p class="mb-1 text-muted">
+                                        ${client.company ? `<i class="bi bi-building me-1"></i>${client.company}` : ''}
+                                        ${client.phone ? `<br><i class="bi bi-telephone me-1"></i>${client.phone}` : ''}
+                                        ${client.email ? `<br><i class="bi bi-envelope me-1"></i>${client.email}` : ''}
+                                    </p>
+                                    <div class="small mt-2">
+                                        <span class="badge bg-light text-dark me-2">
+                                            <i class="bi bi-file-text me-1"></i>${stats.docs.length} מסמכים
+                                        </span>
+                                        <span class="badge bg-success me-2">
+                                            <i class="bi bi-check-circle me-1"></i>₪${stats.paid.toLocaleString()}
+                                        </span>
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-clock me-1"></i>₪${stats.pending.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="action-buttons">
+                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="App.editClient(${client.id})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="App.deleteClient(${client.id})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            },
+            
+            filterClients: function(searchTerm) {
+                const clients = StorageService.getClients();
+                const container = document.getElementById('clients-list');
+                
+                if (!searchTerm.trim()) {
+                    this.loadClientsList();
+                    return;
+                }
+                
+                const filteredClients = clients.filter(client => 
+                    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (client.company && client.company.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (client.phone && client.phone.includes(searchTerm))
+                );
+                
+                if (filteredClients.length === 0) {
+                    container.innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-search me-2"></i>
+                            לא נמצאו לקוחות התואמים לחיפוש "${searchTerm}".
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                filteredClients.forEach(client => {
+                    const stats = StorageService.getClientStats(client.name);
+                    
+                    html += `
+                        <div class="client-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-1">${client.name}</h5>
+                                    <p class="mb-1 text-muted">
+                                        ${client.company ? `<i class="bi bi-building me-1"></i>${client.company}` : ''}
+                                        ${client.phone ? `<br><i class="bi bi-telephone me-1"></i>${client.phone}` : ''}
+                                        ${client.email ? `<br><i class="bi bi-envelope me-1"></i>${client.email}` : ''}
+                                    </p>
+                                    <div class="small mt-2">
+                                        <span class="badge bg-light text-dark me-2">
+                                            <i class="bi bi-file-text me-1"></i>${stats.docs.length} מסמכים
+                                        </span>
+                                        <span class="badge bg-success me-2">
+                                            <i class="bi bi-check-circle me-1"></i>₪${stats.paid.toLocaleString()}
+                                        </span>
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-clock me-1"></i>₪${stats.pending.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            },
+            
+            loadDocumentsList: function() {
+                const history = StorageService.getHistory();
+                const container = document.getElementById('documents-list');
+                
+                if (history.length === 0) {
+                    container.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            עדיין אין מסמכים במערכת. הוסף מסמך ראשון בלשונית "הוספת מסמך".
+                        </div>
+                    `;
+                    return;
+                }
+                
+                this.displayDocuments(history);
+            },
+            
+            displayDocuments: function(documents) {
+                const container = document.getElementById('documents-list');
+                
+                let html = '';
+                documents.forEach(doc => {
+                    const statusClass = doc.paid ? 'paid' : 'pending';
+                    const statusBadge = doc.paid ? 'badge-paid' : 'badge-pending';
+                    const statusText = doc.paid ? 'שולם' : 'ממתין לתשלום';
+                    const date = new Date(doc.date).toLocaleDateString('he-IL');
+                    
+                    html += `
+                        <div class="document-item ${statusClass}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h5 class="mb-1">${doc.client}</h5>
+                                            <p class="mb-1 text-muted">
+                                                <i class="bi bi-file-earmark-text me-1"></i>${doc.type}
+                                                ${doc.documentNumber ? ` | מס' ${doc.documentNumber}` : ''}
+                                                <br>
+                                                ${doc.description || 'ללא תיאור'}
+                                            </p>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="badge ${statusBadge} mb-1">${statusText}</div>
+                                            <h4 class="mb-0">₪${doc.total.toLocaleString()}</h4>
+                                            <small class="text-muted">${date}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="action-buttons ms-2">
+                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="App.editDocument(${doc.id})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="App.deleteDocument(${doc.id})">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            },
+            
+            filterDocuments: function(searchTerm) {
+                const history = StorageService.getHistory();
+                
+                if (!searchTerm.trim()) {
+                    this.loadDocumentsList();
+                    return;
+                }
+                
+                const filteredDocs = history.filter(doc => 
+                    doc.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (doc.description && doc.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                    (doc.documentNumber && doc.documentNumber.includes(searchTerm))
+                );
+                
+                if (filteredDocs.length === 0) {
+                    document.getElementById('documents-list').innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-search me-2"></i>
+                            לא נמצאו מסמכים התואמים לחיפוש "${searchTerm}".
+                        </div>
+                    `;
+                    return;
+                }
+                
+                this.displayDocuments(filteredDocs);
+            },
+            
+            filterDocumentsByStatus: function(status) {
+                const history = StorageService.getHistory();
+                let filteredDocs;
+                
+                switch(status) {
+                    case 'paid':
+                        filteredDocs = history.filter(doc => doc.paid);
+                        break;
+                    case 'pending':
+                        filteredDocs = history.filter(doc => !doc.paid);
+                        break;
+                    default:
+                        filteredDocs = history;
+                }
+                
+                if (filteredDocs.length === 0) {
+                    document.getElementById('documents-list').innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-info-circle me-2"></i>
+                            לא נמצאו מסמכים בקטגוריה זו.
+                        </div>
+                    `;
+                    return;
+                }
+                
+                this.displayDocuments(filteredDocs);
+            },
+            
+            populateClientSelects: function() {
+                const clients = StorageService.getClients();
+                const selects = [
+                    document.getElementById('document-client'),
+                    document.getElementById('edit-document-client'),
+                    document.getElementById('report-client-select')
+                ];
+                
+                selects.forEach(select => {
+                    if (!select) return;
+                    
+                    // שמירת הערך הנוכחי
+                    const currentValue = select.value;
+                    
+                    // ניקוי האופציות (שומר את האופציה הראשונה)
+                    while (select.options.length > 1) {
+                        select.remove(1);
+                    }
+                    
+                    // הוספת לקוחות
+                    clients.forEach(client => {
+                        const option = document.createElement('option');
+                        option.value = client.name;
+                        option.textContent = client.name + (client.company ? ` (${client.company})` : '');
+                        select.appendChild(option);
+                    });
+                    
+                    // שחזור הערך הקודם אם אפשר
+                    if (currentValue && Array.from(select.options).some(opt => opt.value === currentValue)) {
+                        select.value = currentValue;
+                    }
+                });
+            },
+            
+            addNewClient: function() {
+                try {
+                    const clientData = {
+                        name: document.getElementById('client-name').value,
+                        phone: document.getElementById('client-phone').value,
+                        email: document.getElementById('client-email').value,
+                        company: document.getElementById('client-company').value,
+                        address: document.getElementById('client-address').value,
+                        notes: document.getElementById('client-notes').value
+                    };
+                    
+                    const newClient = StorageService.addClient(clientData);
+                    
+                    // ניקוי הטופס
+                    document.getElementById('add-client-form').reset();
+                    
+                    // הצגת הודעה והחלפת מסך
+                    alert(`לקוח "${newClient.name}" נוסף בהצלחה!`);
+                    this.showSection('clients');
+                    this.loadClientsList();
+                    this.updateDashboard();
+                    this.updateQuickStats();
+                    this.populateClientSelects();
+                    
+                } catch (error) {
+                    alert(`שגיאה בהוספת הלקוח: ${error.message}`);
+                }
+            },
+            
+            addNewDocument: function() {
+                try {
+                    // קביעת תאריך ברירת מחדל להיום אם לא נבחר
+                    let dateValue = document.getElementById('document-date').value;
+                    if (!dateValue) {
+                        const today = new Date().toISOString().split('T')[0];
+                        dateValue = today;
+                        document.getElementById('document-date').value = today;
+                    }
+                    
+                    const documentData = {
+                        client: document.getElementById('document-client').value,
+                        type: document.getElementById('document-type').value,
+                        documentNumber: document.getElementById('document-number').value,
+                        total: document.getElementById('document-total').value,
+                        paid: document.getElementById('document-paid').value === 'true',
+                        description: document.getElementById('document-description').value,
+                        notes: document.getElementById('document-notes').value,
+                        date: dateValue
+                    };
+                    
+                    const newDoc = StorageService.addDocument(documentData);
+                    
+                    // ניקוי הטופס
+                    document.getElementById('add-document-form').reset();
+                    document.getElementById('document-date').value = new Date().toISOString().split('T')[0];
+                    
+                    // הצגת הודעה והחלפת מסך
+                    alert(`מסמך ללקוח "${newDoc.client}" נוסף בהצלחה בסכום ₪${newDoc.total.toLocaleString()}!`);
+                    this.showSection('documents');
+                    this.loadDocumentsList();
+                    this.updateDashboard();
+                    this.updateQuickStats();
+                    
+                } catch (error) {
+                    alert(`שגיאה בהוספת המסמך: ${error.message}`);
+                }
+            },
+            
+            editClient: function(clientId) {
+                const clients = StorageService.getClients();
+                const client = clients.find(c => c.id === clientId);
+                
+                if (!client) {
+                    alert('לקוח לא נמצא');
+                    return;
+                }
+                
+                // מילוי הטופס
+                document.getElementById('edit-client-id').value = client.id;
+                document.getElementById('edit-client-name').value = client.name;
+                document.getElementById('edit-client-phone').value = client.phone;
+                document.getElementById('edit-client-email').value = client.email;
+                document.getElementById('edit-client-address').value = client.address;
+                document.getElementById('edit-client-notes').value = client.notes;
+                
+                // הצגת המודל
+                const modal = new bootstrap.Modal(document.getElementById('editClientModal'));
+                modal.show();
+            },
+            
+            saveClientChanges: function() {
+                const clientId = parseInt(document.getElementById('edit-client-id').value);
+                
+                const updates = {
+                    name: document.getElementById('edit-client-name').value,
+                    phone: document.getElementById('edit-client-phone').value,
+                    email: document.getElementById('edit-client-email').value,
+                    address: document.getElementById('edit-client-address').value,
+                    notes: document.getElementById('edit-client-notes').value
+                };
+                
+                const updatedClient = StorageService.updateClient(clientId, updates);
+                
+                if (updatedClient) {
+                    alert('פרטי הלקוח עודכנו בהצלחה!');
+                    
+                    // סגירת המודל
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editClientModal'));
+                    modal.hide();
+                    
+                    // רענון הנתונים
+                    this.loadClientsList();
+                    this.updateDashboard();
+                    this.updateQuickStats();
+                    this.populateClientSelects();
+                } else {
+                    alert('שגיאה בעדכון הלקוח');
+                }
+            },
+            
+            deleteClient: function(clientId) {
+                if (!confirm('האם אתה בטוח שברצונך למחוק לקוח זה? כל המסמכים שלו יישארו במערכת.')) {
+                    return;
+                }
+                
+                StorageService.deleteClient(clientId);
+                alert('הלקוח נמחק בהצלחה');
+                
+                // רענון הנתונים
+                this.loadClientsList();
+                this.updateDashboard();
+                this.updateQuickStats();
+                this.populateClientSelects();
+            },
+            
+            editDocument: function(docId) {
+                const history = StorageService.getHistory();
+                const doc = history.find(d => d.id === docId);
+                
+                if (!doc) {
+                    alert('מסמך לא נמצא');
+                    return;
+                }
+                
+                // מילוי הטופס
+                document.getElementById('edit-document-id').value = doc.id;
+                document.getElementById('edit-document-client').value = doc.client;
+                document.getElementById('edit-document-total').value = doc.total;
+                document.getElementById('edit-document-paid').value = doc.paid.toString();
+                document.getElementById('edit-document-description').value = doc.description;
+                
+                // עדכון רשימת הלקוחות
+                this.populateClientSelects();
+                
+                // הצגת המודל
+                const modal = new bootstrap.Modal(document.getElementById('editDocumentModal'));
+                modal.show();
+            },
+            
+            saveDocumentChanges: function() {
+                const docId = parseInt(document.getElementById('edit-document-id').value);
+                
+                const updates = {
+                    client: document.getElementById('edit-document-client').value,
+                    total: document.getElementById('edit-document-total').value,
+                    paid: document.getElementById('edit-document-paid').value === 'true',
+                    description: document.getElementById('edit-document-description').value
+                };
+                
+                const updatedDoc = StorageService.updateDocument(docId, updates);
+                
+                if (updatedDoc) {
+                    alert('פרטי המסמך עודכנו בהצלחה!');
+                    
+                    // סגירת המודל
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editDocumentModal'));
+                    modal.hide();
+                    
+                    // רענון הנתונים
+                    this.loadDocumentsList();
+                    this.updateDashboard();
+                    this.updateQuickStats();
+                } else {
+                    alert('שגיאה בעדכון המסמך');
+                }
+            },
+            
+            deleteDocument: function(docId) {
+                if (!confirm('האם אתה בטוח שברצונך למחוק מסמך זה?')) {
+                    return;
+                }
+                
+                StorageService.deleteDocument(docId);
+                alert('המסמך נמחק בהצלחה');
+                
+                // רענון הנתונים
+                this.loadDocumentsList();
+                this.updateDashboard();
+                this.updateQuickStats();
+            },
+            
+            loadReports: function() {
+                this.populateClientSelects();
+                this.loadLatestActivity();
+                this.loadTopClients();
+            },
+            
+            showClientReport: function(clientName) {
+                const stats = StorageService.getClientStats(clientName);
+                const reportDiv = document.getElementById('client-report');
+                
+                // עדכון הסכומים
+                document.getElementById('report-paid-total').textContent = `₪${stats.paid.toLocaleString()}`;
+                document.getElementById('report-pending-total').textContent = `₪${stats.pending.toLocaleString()}`;
+                document.getElementById('report-total').textContent = `₪${stats.total.toLocaleString()}`;
+                
+                // הצגת מסמכי הלקוח
+                const container = document.getElementById('client-documents-list');
+                
+                if (stats.docs.length === 0) {
+                    container.innerHTML = '<p class="text-muted">אין מסמכים ללקוח זה</p>';
+                } else {
+                    let html = '<div class="table-responsive"><table class="table table-sm">';
+                    html += `
+                        <thead>
+                            <tr>
+                                <th>סוג</th>
+                                <th>תיאור</th>
+                                <th>תאריך</th>
+                                <th>סכום</th>
+                                <th>סטטוס</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                    `;
+                    
+                    stats.docs.forEach(doc => {
+                        const date = new Date(doc.date).toLocaleDateString('he-IL');
+                        const statusBadge = doc.paid ? 
+                            '<span class="badge bg-success">שולם</span>' : 
+                            '<span class="badge bg-warning">ממתין</span>';
+                        
+                        html += `
+                            <tr>
+                                <td>${doc.type}</td>
+                                <td>${doc.description || '-'}</td>
+                                <td>${date}</td>
+                                <td>₪${doc.total.toLocaleString()}</td>
+                                <td>${statusBadge}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += '</tbody></table></div>';
+                    container.innerHTML = html;
+                }
+                
+                // הצגת הדוח
+                reportDiv.classList.remove('d-none');
+            },
+            
+            loadLatestActivity: function() {
+                const history = StorageService.getHistory();
+                const recentActivity = history.slice(-3).reverse(); // 3 האחרונים
+                const container = document.getElementById('latest-activity');
+                
+                if (recentActivity.length === 0) {
+                    container.innerHTML = '<p class="text-muted">אין פעילות עדיין</p>';
+                    return;
+                }
+                
+                let html = '';
+                recentActivity.forEach(doc => {
+                    const date = new Date(doc.timestamp).toLocaleDateString('he-IL');
+                    const status = doc.paid ? 'שולם' : 'ממתין';
+                    const statusClass = doc.paid ? 'text-success' : 'text-warning';
+                    
+                    html += `
+                        <div class="border-bottom pb-2 mb-2">
+                            <div class="fw-bold">${doc.client}</div>
+                            <div class="d-flex justify-content-between">
+                                <span>${doc.type}</span>
+                                <span class="${statusClass}">${status}</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <small class="text-muted">${date}</small>
+                                <small class="fw-bold">₪${doc.total.toLocaleString()}</small>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            },
+            
+            loadTopClients: function() {
+                const clients = StorageService.getClients();
+                const history = StorageService.getHistory();
+                
+                // חישוב סכומים לפי לקוח
+                const clientTotals = {};
+                
+                history.forEach(doc => {
+                    if (!clientTotals[doc.client]) {
+                        clientTotals[doc.client] = 0;
+                    }
+                    clientTotals[doc.client] += doc.total;
+                });
+                
+                // המרה למערך ומיון
+                const topClientsArray = Object.entries(clientTotals)
+                    .map(([name, total]) => ({ name, total }))
+                    .sort((a, b) => b.total - a.total)
+                    .slice(0, 3); // 3 המובילים
+                
+                const container = document.getElementById('top-clients');
+                
+                if (topClientsArray.length === 0) {
+                    container.innerHTML = '<p class="text-muted">אין מספיק נתונים</p>';
+                    return;
+                }
+                
+                let html = '';
+                topClientsArray.forEach((client, index) => {
+                    html += `
+                        <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                            <div>
+                                <span class="badge bg-primary me-2">${index + 1}</span>
+                                <span>${client.name}</span>
+                            </div>
+                            <div class="fw-bold">₪${client.total.toLocaleString()}</div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            },
+            
+            exportData: function() {
+                const data = StorageService.exportAllData();
+                const filename = document.getElementById('backup-filename').value || 'גיבוי_נתונים';
+                
+                // המרה לקובץ JSON והורדה
+                const dataStr = JSON.stringify(data, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                
+                const link = document.createElement('a');
+                link.setAttribute('href', dataUri);
+                link.setAttribute('download', filename + '.json');
+                link.click();
+                
+                alert(`הנתונים יוצאו בהצלחה לקובץ ${filename}.json`);
+            },
+            
+            importData: function() {
+                const fileInput = document.getElementById('import-file');
+                
+                if (!fileInput.files.length) {
+                    alert('בחר קובץ לייבוא');
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        
+                        if (!confirm('ייבוא הנתונים ימחק את כל הנתונים הקיימים. האם להמשיך?')) {
+                            return;
+                        }
+                        
+                        StorageService.importData(data);
+                        alert('הנתונים יובאו בהצלחה!');
+                        
+                        // רענון כל הנתונים
+                        this.loadInitialData();
+                        this.showSection('dashboard');
+                        
+                        // ניקוי שדה הקובץ
+                        fileInput.value = '';
+                        
+                    } catch (error) {
+                        alert(`שגיאה בקריאת הקובץ: ${error.message}`);
+                    }
+                };
+                
+                reader.readAsText(file);
+            },
+            
+            createBackup: function() {
+                const backup = StorageService.createBackup();
+                const date = new Date(backup.timestamp).toLocaleString('he-IL');
+                
+                alert(`נוצר גיבוי חדש בתאריך: ${date}\nמספר הגיבויים השמורים: ${StorageService.getBackups().length}`);
+            },
+            
+            cleanOldBackups: function() {
+                const keepCount = parseInt(document.getElementById('backup-retention').value) || 5;
+                const cleaned = StorageService.cleanOldBackups(keepCount);
+                
+                alert(`נוקו גיבויים ישנים. נותרו ${cleaned.length} גיבויים במערכת.`);
+            }
+        };
+
+        // אתחול האפליקציה כשהדף נטען
+        document.addEventListener('DOMContentLoaded', () => {
+            App.init();
+        });
+
+        // הפיכת App לזמין ב-global scope לפונקציות שנקראות מ-HTML
+        window.App = App;
+    </script>
+</body>
+    </html>
