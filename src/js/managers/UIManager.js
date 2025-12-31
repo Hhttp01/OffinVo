@@ -1264,3 +1264,400 @@ getTemplateHTML(name) {
     
     return templates[name] || `<div class="alert alert-danger">תבנית "${name}" לא נמצאה</div>`;
 }
+// 📄 src/js/managers/UIManager.js - הוספת פונקציות חסרות
+
+async loadDocumentsList(filters = {}) {
+    const documents = this.app.documentManager.getAllDocuments(filters);
+    const container = document.getElementById('documents-list');
+    
+    if (!container) return;
+    
+    if (documents.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                עדיין אין מסמכים במערכת. הוסף מסמך ראשון.
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = documents.map(doc => {
+        const statusClass = doc.paid ? 'badge-success' : 'badge-warning';
+        const statusText = doc.paid ? 'שולם' : 'ממתין לתשלום';
+        const date = new Date(doc.date).toLocaleDateString('he-IL');
+        const dueDate = doc.dueDate ? new Date(doc.dueDate).toLocaleDateString('he-IL') : null;
+        const isOverdue = doc.dueDate && !doc.paid && new Date(doc.dueDate) < new Date();
+        
+        return `
+            <div class="client-card">
+                <div class="client-header">
+                    <div>
+                        <h5>${doc.client}</h5>
+                        <div class="client-meta">
+                            <span><i class="bi bi-file-earmark-text"></i> ${this.getDocumentTypeLabel(doc.type)}</span>
+                            ${doc.number ? `<span class="ms-3"><i class="bi bi-hash"></i> ${doc.number}</span>` : ''}
+                            <span class="ms-3"><i class="bi bi-calendar"></i> ${date}</span>
+                            ${dueDate ? `<span class="ms-3 ${isOverdue ? 'text-danger' : 'text-muted'}"><i class="bi bi-calendar-x"></i> ${dueDate}</span>` : ''}
+                        </div>
+                    </div>
+                    <span class="badge ${statusClass}">${statusText}</span>
+                </div>
+                
+                ${doc.description ? `<p class="text-muted">${doc.description}</p>` : ''}
+                
+                <div class="client-stats">
+                    <span class="stat-badge">
+                        <i class="bi bi-currency-exchange"></i>
+                        ₪${doc.total.toLocaleString()}
+                    </span>
+                    <span class="stat-badge">
+                        <i class="bi bi-calendar"></i>
+                        ${date}
+                    </span>
+                    ${isOverdue ? `
+                        <span class="stat-badge bg-danger text-white">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            עבר מועד
+                        </span>
+                    ` : ''}
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn btn-sm btn-outline-primary btn-icon" 
+                            onclick="app.uiManager.editDocument('${doc.id}')">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger btn-icon"
+                            onclick="app.uiManager.deleteDocument('${doc.id}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary btn-icon"
+                            onclick="app.uiManager.togglePaymentStatus('${doc.id}')">
+                        <i class="bi bi-${doc.paid ? 'x-circle' : 'check-circle'}"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+getDocumentTypeLabel(type) {
+    const typeMap = {
+        'invoice': 'חשבונית',
+        'receipt': 'קבלה',
+        'estimate': 'הערכת מחיר',
+        'contract': 'חוזה',
+        'proforma': 'חשבונית זמנית',
+        'order': 'הזמנה',
+        'other': 'אחר'
+    };
+    return typeMap[type] || type;
+}
+
+async setupAddDocumentForm() {
+    const form = document.getElementById('add-document-form');
+    if (!form) return;
+    
+    // מילוי תאריך ברירת מחדל (היום)
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = form.querySelector('#document-date');
+    if (dateInput && !dateInput.value) {
+        dateInput.value = today;
+    }
+    
+    // מילוי רשימת הלקוחות
+    await this.populateClientSelect();
+    
+    // מילוי רשימת סוגי מסמכים
+    this.populateDocumentTypeSelect();
+    
+    // הסרת כל המאזינים הקיימים
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+    
+    // הוספת מאזין חדש
+    document.getElementById('add-document-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const formData = new FormData(e.target);
+        const documentData = {
+            client: formData.get('client'),
+            type: formData.get('type'),
+            number: formData.get('number'),
+            date: formData.get('date'),
+            dueDate: formData.get('dueDate') || '',
+            total: parseFloat(formData.get('total')),
+            paid: formData.get('paid') === 'true',
+            description: formData.get('description'),
+            notes: formData.get('notes'),
+            currency: formData.get('currency') || 'ILS'
+        };
+        
+        try {
+            await this.app.documentManager.addDocument(documentData);
+            this.showNotification('המסמך נוסף בהצלחה!', 'success');
+            e.target.reset();
+            
+            // החזרת תאריך ברירת מחדל
+            const dateInput = e.target.querySelector('#document-date');
+            if (dateInput) {
+                dateInput.value = new Date().toISOString().split('T')[0];
+            }
+            
+            this.showSection('documents');
+        } catch (error) {
+            this.showNotification(`שגיאה: ${error.message}`, 'error');
+        }
+    });
+}
+
+async populateClientSelect() {
+    const selects = [
+        document.getElementById('document-client'),
+        document.getElementById('report-client-select')
+    ];
+    
+    const clients = this.app.clientManager.getAllClients({ activeOnly: true });
+    
+    selects.forEach(select => {
+        if (!select) return;
+        
+        // שמירת הערך הנוכחי
+        const currentValue = select.value;
+        
+        // יצירת רשימה חדשה
+        let options = '<option value="">בחר לקוח</option>';
+        
+        clients.forEach(client => {
+            const displayName = client.company ? 
+                `${client.name} (${client.company})` : 
+                client.name;
+            options += `<option value="${client.name}">${displayName}</option>`;
+        });
+        
+        select.innerHTML = options;
+        
+        // שחזור הערך הקודם אם אפשר
+        if (currentValue && Array.from(select.options).some(opt => opt.value === currentValue)) {
+            select.value = currentValue;
+        }
+    });
+}
+
+populateDocumentTypeSelect() {
+    const select = document.getElementById('document-type');
+    if (!select) return;
+    
+    const types = AppConfig.documentTypes || [
+        { value: 'invoice', label: 'חשבונית' },
+        { value: 'receipt', label: 'קבלה' },
+        { value: 'estimate', label: 'הערכת מחיר' },
+        { value: 'contract', label: 'חוזה' },
+        { value: 'other', label: 'אחר' }
+    ];
+    
+    let options = '<option value="">בחר סוג מסמך</option>';
+    types.forEach(type => {
+        options += `<option value="${type.value}">${type.label}</option>`;
+    });
+    
+    select.innerHTML = options;
+}
+
+async editDocument(documentId) {
+    const doc = this.app.documentManager.getDocumentById(documentId);
+    if (!doc) {
+        this.showNotification('מסמך לא נמצא', 'error');
+        return;
+    }
+    
+    this.showSection('add-document');
+    
+    // המתנה לטעינת הטופס
+    setTimeout(async () => {
+        const form = document.getElementById('add-document-form');
+        if (!form) return;
+        
+        // מילוי השדות
+        form.querySelector('#document-client').value = doc.client;
+        form.querySelector('#document-type').value = doc.type;
+        form.querySelector('#document-number').value = doc.number || '';
+        form.querySelector('#document-date').value = doc.date;
+        form.querySelector('#document-due-date').value = doc.dueDate || '';
+        form.querySelector('#document-total').value = doc.total;
+        form.querySelector('#document-paid').value = doc.paid.toString();
+        form.querySelector('#document-description').value = doc.description || '';
+        form.querySelector('#document-notes').value = doc.notes || '';
+        form.querySelector('#document-currency').value = doc.currency || 'ILS';
+        
+        // עדכון טקסט הכפתור
+        const submitBtn = form.querySelector('[type="submit"]');
+        submitBtn.textContent = 'עדכון מסמך';
+        
+        // הסרת מאזינים קיימים והוספת מאזין לעדכון
+        const newForm = form.cloneNode(true);
+        form.parentNode.replaceChild(newForm, form);
+        
+        document.getElementById('add-document-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const updates = {
+                client: formData.get('client'),
+                type: formData.get('type'),
+                number: formData.get('number'),
+                date: formData.get('date'),
+                dueDate: formData.get('dueDate') || '',
+                total: parseFloat(formData.get('total')),
+                paid: formData.get('paid') === 'true',
+                description: formData.get('description'),
+                notes: formData.get('notes'),
+                currency: formData.get('currency') || 'ILS'
+            };
+            
+            try {
+                await this.app.documentManager.updateDocument(documentId, updates);
+                this.showNotification('המסמך עודכן בהצלחה!', 'success');
+                this.showSection('documents');
+            } catch (error) {
+                this.showNotification(`שגיאה: ${error.message}`, 'error');
+            }
+        });
+    }, 100);
+}
+
+async deleteDocument(documentId) {
+    if (!confirm('האם אתה בטוח שברצונך למחוק מסמך זה?')) {
+        return;
+    }
+    
+    try {
+        await this.app.documentManager.deleteDocument(documentId);
+        this.showNotification('המסמך נמחק בהצלחה', 'success');
+        await this.loadDocumentsList();
+        this.updateQuickStats();
+    } catch (error) {
+        this.showNotification(`שגיאה: ${error.message}`, 'error');
+    }
+}
+
+async togglePaymentStatus(documentId) {
+    try {
+        const updatedDoc = await this.app.documentManager.togglePaymentStatus(documentId);
+        if (updatedDoc) {
+            const status = updatedDoc.paid ? 'שולם' : 'ממתין לתשלום';
+            this.showNotification(`סטטוס המסמך שונה ל"${status}"`, 'success');
+            await this.loadDocumentsList();
+            this.updateQuickStats();
+        }
+    } catch (error) {
+        this.showNotification(`שגיאה: ${error.message}`, 'error');
+    }
+}
+
+filterDocuments(searchTerm) {
+    const documents = this.app.documentManager.getAllDocuments();
+    const container = document.getElementById('documents-list');
+    
+    if (!container || !searchTerm.trim()) {
+        this.loadDocumentsList();
+        return;
+    }
+    
+    const filtered = documents.filter(doc =>
+        doc.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (doc.number && doc.number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (doc.description && doc.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    
+    if (filtered.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-search me-2"></i>
+                לא נמצאו מסמכים התואמים לחיפוש.
+            </div>
+        `;
+        return;
+    }
+    
+    this.loadDocumentsList({ search: searchTerm });
+}
+
+applyDocumentFilter(filter) {
+    const filters = {};
+    
+    if (filter === 'paid') {
+        filters.status = 'paid';
+    } else if (filter === 'pending') {
+        filters.status = 'pending';
+    }
+    
+    // סינון לפי סוג מסמך
+    const typeFilter = document.getElementById('document-type-filter');
+    if (typeFilter && typeFilter.value !== 'all') {
+        filters.type = typeFilter.value;
+    }
+    
+    this.loadDocumentsList(filters);
+}
+
+setupSectionListeners(sectionId) {
+    switch(sectionId) {
+        case 'documents':
+            this.setupDocumentFilters();
+            break;
+        case 'add-client':
+            this.setupAddClientForm();
+            break;
+        case 'add-document':
+            this.setupAddDocumentForm();
+            break;
+        case 'backup':
+            this.setupBackupSection();
+            break;
+        case 'reports':
+            this.setupReportsSection();
+            break;
+    }
+}
+
+setupDocumentFilters() {
+    // מאזין לסינון לפי סטטוס
+    document.addEventListener('click', (e) => {
+        if (e.target.matches('.filter-btn') || e.target.closest('.filter-btn')) {
+            const btn = e.target.matches('.filter-btn') ? e.target : e.target.closest('.filter-btn');
+            if (this.currentSection === 'documents') {
+                const filter = btn.getAttribute('data-filter');
+                
+                // הסרת active מכל הכפתורים
+                btn.parentElement.querySelectorAll('.filter-btn').forEach(b => {
+                    b.classList.remove('active');
+                });
+                
+                // הוספת active לכפתור הנוכחי
+                btn.classList.add('active');
+                
+                this.applyDocumentFilter(filter);
+            }
+        }
+    });
+    
+    // מאזין לסינון לפי סוג מסמך
+    const typeFilter = document.getElementById('document-type-filter');
+    if (typeFilter) {
+        typeFilter.addEventListener('change', () => {
+            const activeFilter = document.querySelector('.filter-btn.active');
+            const filter = activeFilter ? activeFilter.getAttribute('data-filter') : 'all';
+            this.applyDocumentFilter(filter);
+        });
+    }
+    
+    // מאזין לחיפוש מסמכים
+    const searchInput = document.getElementById('document-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            this.filterDocuments(e.target.value);
+        });
+    }
+}
