@@ -3,220 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>InvoiceFlow Pro - All-in-One</title>
+    <title>InvoiceFlow Pro - Stable Version</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script>
-        tailwind.config = { darkMode: 'class', theme: { extend: { colors: { darkBg: '#0f172a' } } } }
-    </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@200;400;600;800&display=swap');
-        body { font-family: 'Assistant', sans-serif; transition: background 0.3s; }
-        .glass { backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
-        .dark .glass { background: rgba(30, 41, 59, 0.7); }
-        .light .glass { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(0,0,0,0.1); }
-        .page-section { display: none; }
-        .page-section.active { display: block; animation: fadeIn 0.4s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;700;800&display=swap');
+        body { font-family: 'Assistant', sans-serif; margin: 0; padding: 0; }
         
+        /* הסתרת אזורים לא רלוונטיים בהדפסה */
         @media print {
             .no-print { display: none !important; }
-            body { background: white !important; overflow: visible !important; }
-            .preview-paper { box-shadow: none !important; margin: 0 !important; width: 100% !important; border: none !important; padding: 10mm !important; }
-            main { height: auto !important; overflow: visible !important; }
+            body { background: white !important; }
+            .preview-page { box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
         }
 
-        .preview-paper { 
-            width: 100%; max-width: 210mm; min-height: 297mm; 
-            padding: 20mm; background: white; color: #1e293b; 
-            margin: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.15); border-radius: 4px;
+        .page-section { display: none; }
+        .page-section.active { display: block; }
+        
+        /* עיצוב הדף של החשבונית (A4) */
+        .preview-page {
+            background: white;
+            width: 100%;
+            max-width: 800px;
+            min-height: 1000px;
+            margin: 20px auto;
+            padding: 50px;
+            color: #1a202c;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border: 1px solid #e2e8f0;
         }
+
+        /* מניעת שבירת תפריט בנייד */
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; z-index: 100; }
     </style>
 </head>
-<body class="dark bg-darkBg text-slate-200 h-screen flex flex-col md:flex-row overflow-hidden" id="bodyTag">
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
 
-    <aside class="no-print w-full md:w-64 bg-slate-950/90 md:bg-slate-950/50 border-t md:border-l md:border-t-0 border-white/5 flex md:flex-col p-3 md:p-6 z-50 order-2 md:order-1">
-        <div class="hidden md:flex items-center gap-3 mb-10">
-            <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg"><i class="fas fa-bolt text-white"></i></div>
-            <span class="text-xl font-extrabold italic tracking-tighter">Invoice<span class="text-blue-500">Flow</span></span>
+    <header class="no-print bg-white border-b h-16 flex items-center justify-between px-6 sticky top-0 z-50">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
+                <i class="fas fa-file-invoice"></i>
+            </div>
+            <span class="font-bold text-xl tracking-tight">Invoice<span class="text-blue-600">Flow</span></span>
         </div>
+        <div id="statusTag" class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold uppercase">Auto-Save Active</div>
+    </header>
 
-        <nav class="flex md:flex-col justify-around md:justify-start w-full gap-1">
-            <button onclick="navigateTo('dashboard', this)" class="nav-btn flex-1 md:flex-none flex flex-col md:flex-row items-center p-2 md:p-4 rounded-2xl bg-blue-600 text-white transition">
-                <i class="fas fa-chart-pie md:ml-3 text-lg md:text-base"></i>
-                <span class="text-[10px] md:text-sm font-bold mt-1 md:mt-0">דשבורד</span>
-            </button>
-            <button onclick="navigateTo('createDoc', this)" class="nav-btn flex-1 md:flex-none flex flex-col md:flex-row items-center p-2 md:p-4 rounded-2xl text-slate-400 hover:text-white transition">
-                <i class="fas fa-plus-circle md:ml-3 text-lg md:text-base"></i>                <div class="glass p-6 md:p-8 rounded-[2rem] space-y-4">
-                    <input type="text" id="custName" placeholder="שם הלקוח" class="save-input w-full bg-slate-900 p-4 rounded-xl border border-white/5 outline-none">
-                    <button onclick="updatePreview(); navigateTo('preview')" class="w-full bg-blue-600 py-4 rounded-xl font-bold shadow-lg">צפה בתצוגה מקדימה</button>
+    <main class="flex-1 p-4 md:p-8 mb-20 md:mb-0 max-w-5xl mx-auto w-full">
+
+        <section id="dashboard" class="page-section active">
+            <h2 class="text-2xl font-bold mb-6">דשבורד</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 font-bold uppercase">הכנסות</p>
+                    <p class="text-2xl font-bold text-blue-600">₪0.00</p>
                 </div>
-            </section>
-
-            <section id="preview" class="page-section">
-                <div class="preview-paper text-right mb-10">
-                    <div class="flex justify-between items-start mb-10">
-                        <div>
-                            <img id="previewLogo" class="hidden max-h-16 mb-2" />
-                            <h1 id="preMyBusName" class="text-xl font-black text-blue-600">שם העסק</h1>
-                            <p id="preMyBusId" class="text-[10px] text-slate-400">ח.פ 000000</p>
-                        </div>
-                        <div class="text-2xl font-black opacity-10 uppercase">Invoice</div>
-                    </div>
-                    <div class="border-r-4 border-blue-600 pr-3 mb-10">
-                        <h4 id="preCustName" class="font-bold">שם הלקוח</h4>
-                    </div>
-                    <div class="no-print flex gap-2">
-                        <button onclick="window.print()" class="flex-1 bg-slate-900 text-white py-3 rounded-xl font-bold">הדפס / PDF</button>
-                        <button onclick="navigateTo('createDoc')" class="flex-1 bg-slate-100 text-slate-800 py-3 rounded-xl font-bold">חזור</button>
-                    </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 font-bold uppercase">מסמכים</p>
+                    <p class="text-2xl font-bold">0</p>
                 </div>
-            </section>
+            </div>
+        </section>
 
-        </div>
-    </main>
-
-    <script>
-        function navigateTo(id) {
-            document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            
-            // עדכון כפתורי ניווט
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.classList.remove('bg-blue-600', 'text-white');
-                btn.classList.add('text-slate-400');
-            });
-            event.currentTarget.classList.add('bg-blue-600', 'text-white');
-            event.currentTarget.classList.remove('text-slate-400');
-        }
-
-        // לוגיקה ללוגו ושמירה
-        const logoInput = document.getElementById('logoInput');
-        logoInput.addEventListener('change', function() {
-            const file = this.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = e => {
-                    localStorage.setItem('savedLogo', e.target.result);
-                    renderLogo(e.target.result);
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        function renderLogo(data) {
-            if (data) {
-                document.getElementById('logoImgContainer').src = data;
-                document.getElementById('logoImgContainer').classList.remove('hidden');
-                document.getElementById('logoPlaceholder').classList.add('hidden');
-                document.getElementById('previewLogo').src = data;
-                document.getElementById('previewLogo').classList.remove('hidden');
-            }
-        }
-
-        // טעינה ראשונית
-        window.onload = () => {
-            document.querySelectorAll('.save-input').forEach(input => {
-                input.value = localStorage.getItem(input.id) || '';
-                input.addEventListener('input', () => localStorage.setItem(input.id, input.value));
-            });
-            renderLogo(localStorage.getItem('savedLogo'));
-        };
-
-        function updatePreview() {
-            document.getElementById('preMyBusName').innerText = document.getElementById('myBusName').value || "שם העסק שלך";
-            document.getElementById('preMyBusId').innerText = "ח.פ " + (document.getElementById('myBusId').value || "000000");
-            document.getElementById('preCustName').innerText = document.getElementById('custName').value || "שם הלקוח";
-        }
-
-        function toggleTheme() {
-            const body = document.getElementById('bodyTag');
-            body.classList.toggle('dark');
-            const icon = document.getElementById('themeIcon');
-            icon.className = body.classList.contains('dark') ? "fas fa-moon md:ml-3 text-lg md:text-base" : "fas fa-sun md:ml-3 text-lg md:text-base text-yellow-500";
-        }
-    </script>
-</body>
-</html>                        <button onclick="navigateTo('createDoc')" class="bg-slate-100 text-slate-800 px-8 py-3 rounded-xl font-bold">חזור לעריכה</button>
+        <section id="settings" class="page-section">
+            <h2 class="text-2xl font-bold mb-6">הגדרות עסק</h2>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 space-y-6">
+                <div class="flex items-center gap-4 border-b pb-6">
+                    <div onclick="document.getElementById('logoInput').click()" class="w-20 h-20 bg-slate-100 border-2 border-dashed border-slate-300 rounded-xl flex items-center justify-center cursor-pointer overflow-hidden">
+                        <img id="logoDisp" class="hidden w-full h-full object-contain" />
+                        <i id="logoIcon" class="fas fa-camera text-slate-400"></i>
+                    </div>
+                    <input type="file" id="logoInput" class="hidden" accept="image/*">
+                    <div>
+                        <p class="font-bold text-sm">לוגו העסק</p>
+                        <p class="text-xs text-slate-500">יופיע בראש החשבונית</p>
                     </div>
                 </div>
-            </section>
-
-            <section id="dashboard" class="page-section active">
-                <div class="glass p-10 rounded-[2rem] text-center">
-                    <h3 class="text-2xl font-bold mb-2 italic">שלום, מוכן להפיק מסמך?</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="bizName" placeholder="שם העסק שלך" class="save-data border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="bizId" placeholder="מספר עוסק / ח.פ" class="save-data border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="tel" id="bizPhone" placeholder="טלפון ליצירת קשר" class="save-data border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                    <input type="text" id="bizAddress" placeholder="כתובת" class="save-data border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
-            </section>
+            </div>
+        </section>
 
-        </div>
-    </main>
-
-    <script>
-        // ניווט
-        function navigateTo(id) {
-            document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            document.getElementById('pageTitle').innerText = (id === 'settings') ? 'הגדרות' : (id === 'createDoc' ? 'יצירה' : 'דשבורד');
-        }
-
-        // לוגיקת לוגו (Base64 + LocalStorage)
-        const logoInput = document.getElementById('logoInput');
-        const logoImgContainer = document.getElementById('logoImgContainer');
-        const logoPlaceholder = document.getElementById('logoUploadPlaceholder');
-        const previewLogo = document.getElementById('previewLogo');
-
-        logoInput.addEventListener('change', function() {
-            const file = this.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const base64Image = e.target.result;
-                    localStorage.setItem('savedLogo', base64Image);
-                    loadLogo(base64Image);
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-
-        function loadLogo(data) {
-            if (data) {
-                logoImgContainer.src = data;
-                logoImgContainer.classList.remove('hidden');
-                logoPlaceholder.classList.add('hidden');
-                previewLogo.src = data;
-                previewLogo.classList.remove('hidden');
-            }
-        }
-
-        // טעינת נתונים ראשונית
-        window.onload = () => {
-            // טעינת טקסטים
-            document.querySelectorAll('.save-input').forEach(input => {
-                const savedValue = localStorage.getItem(input.id);
-                if (savedValue) input.value = savedValue;
-            });
-            // טעינת לוגו
-            const savedLogo = localStorage.getItem('savedLogo');
-            if (savedLogo) loadLogo(savedLogo);
-        };
-
-        // שמירת טקסט בכל הקלדה
-        document.querySelectorAll('.save-input').forEach(input => {
-            input.addEventListener('input', () => {
-                localStorage.setItem(input.id, input.value);
-            });
-        });
-
-        function updatePreview() {
-            document.getElementById('preMyBusName').innerText = document.getElementById('myBusName').value || "שם העסק שלך";
-            document.getElementById('preMyBusId').innerText = "ח.פ " + (document.getElementById('myBusId').value || "00000000");
-            document.getElementById('preCustName').innerText = document.getElementById('custName').value || "שם הלקוח";
-        }
-
-        function toggleTheme() {
-            const body = document.getElementById('bodyTag');
-            body.classList.toggle('dark');
-        }
-    </script>
-</body>
-</html>
+        <section id="create" class="page-
