@@ -247,3 +247,12 @@ function render() {
 
 // הפעלה ראשונית
 window.onload = render;
+
+        <script src="storage.js"></script>
+<script src="app.js"></script>
+
+ולאחר מכן, בתוך `app.js`, תוכל להחליף את הקריאות הישירות ל-`localStorage` בשימוש ב-`StorageService`. לדוגמה:
+* במקום `DB.load('clients')` השתמש ב-`StorageService.getClients()`.
+* במקום `DB.save(...)` השתמש ב-`StorageService.addDocument(...)`.
+
+זה הופך את הקוד שלך להרבה יותר קריא וקל לתחזוקה!
