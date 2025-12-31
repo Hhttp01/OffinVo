@@ -1,0 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;800&display=swap');
+
+body {
+    font-family: 'Assistant', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.card {
+    background: white;
+    border-radius: 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+}
+
+.card:active {
+    transform: scale(0.98);
+}
+
+.page-fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* הגדרות להדפסה */
+@media print {
+    nav, header, .no-print { display: none !important; }
+    .invoice-paper { box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; }
+}
